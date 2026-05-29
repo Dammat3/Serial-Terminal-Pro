@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.3",
     "serialport": "^12.0.0"
   },
   "devDependencies": {
@@ -22,7 +23,10 @@
   "build": {
     "appId": "com.drai.serial-terminal-pro",
     "productName": "Serial Terminal Pro",
-    "win": { "target": "nsis", "icon": "assets/icon.ico" },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
     "publish": {
       "provider": "github",
       "owner": "Dammat",
