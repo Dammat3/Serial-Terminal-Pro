@@ -2359,14 +2359,11 @@ function showUpdateBanner(msg, clickable, type = 'info') {
   txt.textContent = msg;
 
   bar.onclick = clickable
-    ? () => window.serialAPI.installUpdate()
+    ? (e) => { if (e.target !== bar.querySelector('button')) window.serialAPI.installUpdate(); }
     : null;
 
-  // La banner "info" sparisce da sola dopo 6 s se non richiede azione
-  if (!clickable) {
-    clearTimeout(bar._autoHide);
-    bar._autoHide = setTimeout(() => bar.remove(), 6000);
-  }
+  // Il banner rimane visibile finché l'utente non lo chiude manualmente (pulsante ×)
+  clearTimeout(bar._autoHide);
 }
 
 /** Avvolge #tabs-container in un wrapper con frecce di scorrimento. */

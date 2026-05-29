@@ -131,20 +131,6 @@ function buildMenu() {
           },
         },
         { type: 'separator' },
-        {
-          label: 'Controlla aggiornamenti',
-          click() {
-            if (!app.isPackaged) {
-              dialog.showMessageBox(win, { message: 'Modalità sviluppo: aggiornamenti disabilitati.' });
-              return;
-            }
-            win?.webContents.send('update-checking');
-            autoUpdater?.checkForUpdates().catch(err => {
-              dialog.showErrorBox('Aggiornamento', `Impossibile controllare: ${err.message}`);
-            });
-          },
-        },
-        { type: 'separator' },
         { role: 'quit', label: 'Esci' },
       ],
     },
@@ -174,6 +160,42 @@ function buildMenu() {
         },
         { type: 'separator' },
         { role: 'togglefullscreen', label: 'Schermo intero' },
+      ],
+    },
+    {
+      label: '?',
+      submenu: [
+        {
+          label: `Serial Terminal Pro  v${app.getVersion()}`,
+          enabled: false,
+        },
+        { type: 'separator' },
+        {
+          label: 'Controlla aggiornamenti',
+          click() {
+            if (!app.isPackaged) {
+              dialog.showMessageBox(win, { message: 'Modalità sviluppo: aggiornamenti disabilitati.' });
+              return;
+            }
+            win?.webContents.send('update-checking');
+            autoUpdater?.checkForUpdates().catch(err => {
+              dialog.showErrorBox('Aggiornamento', `Impossibile controllare: ${err.message}`);
+            });
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'Informazioni…',
+          click() {
+            dialog.showMessageBox(win, {
+              type:    'info',
+              title:   'Serial Terminal Pro',
+              message: `Serial Terminal Pro\nVersione ${app.getVersion()}`,
+              detail:  'Terminale seriale multi-porta con pulsanti programmabili, SSH, Telnet e timestamp UTC.\n\n© Drai',
+              buttons: ['OK'],
+            });
+          },
+        },
       ],
     },
   ];
