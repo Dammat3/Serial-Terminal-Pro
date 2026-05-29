@@ -1,0 +1,41 @@
+'use strict';
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('serialAPI', {
+  listPorts:      ()     => ipcRenderer.invoke('list-ports'),
+  connectPort:        (args) => ipcRenderer.invoke('connect-port', args),
+  disconnectPort:     (args) => ipcRenderer.invoke('disconnect-port', args),
+  connectSsh:         (args) => ipcRenderer.invoke('connect-ssh', args),
+  connectTelnet:      (args) => ipcRenderer.invoke('connect-telnet', args),
+  disconnectRemote:   (args) => ipcRenderer.invoke('disconnect-remote', args),
+  writeRemote:        (args) => ipcRenderer.invoke('write-remote', args),
+  resizeRemote:       (args) => ipcRenderer.invoke('resize-remote', args),
+  closeTabPorts:  (args) => ipcRenderer.invoke('close-tab-ports', args),
+  writePort:      (args) => ipcRenderer.invoke('write-port', args),
+  getConfig:          ()     => ipcRenderer.invoke('get-config'),
+  saveConfig:         (cfg)  => ipcRenderer.invoke('save-config', cfg),
+  loadConfigFromFile: ()     => ipcRenderer.invoke('load-config-from-file'),
+  appendLog:          (args) => ipcRenderer.invoke('append-log', args),
+  getLogDir:          ()     => ipcRenderer.invoke('get-log-dir'),
+  openLogFolder:      ()     => ipcRenderer.invoke('open-log-folder'),
+  onPortData:   (cb) => ipcRenderer.on('port-data',    (_, d) => cb(d)),
+  onPortClosed: (cb) => ipcRenderer.on('port-closed',  (_, d) => cb(d)),
+  onPortError:  (cb) => ipcRenderer.on('port-error',   (_, d) => cb(d)),
+  onApplyConfig:   (cb) => ipcRenderer.on('apply-config',    (_, d) => cb(d)),
+  onOpenFkeyModal: (cb) => ipcRenderer.on('open-fkey-modal', ()    => cb()),
+  onToggleFkeyBar: (cb) => ipcRenderer.on('toggle-fkey-bar', (_, v) => cb(v)),
+  onReopenLastTab: (cb) => ipcRenderer.on('reopen-last-tab', ()    => cb()),
+  // ── Auto-update ──────────────────────────────────────────────────────────
+  onUpdateChecking:  (cb) => ipcRenderer.on('update-checking',  ()    => cb()),
+  onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, v) => cb(v)),
+  onUpdateProgress:  (cb) => ipcRenderer.on('update-progress',  (_, p) => cb(p)),
+  onUpdateDownloaded:(cb) => ipcRenderer.on('update-downloaded',(_, v) => cb(v)),
+  installUpdate:     ()   => ipcRenderer.invoke('install-update'),
+  checkForUpdates:   ()   => ipcRenderer.invoke('check-for-updates-manual'),
+  removeListeners: () => {
+    ['port-data','port-closed','port-error','apply-config','open-fkey-modal',
+     'toggle-fkey-bar','reopen-last-tab',
+     'update-checking','update-available','update-progress','update-downloaded',
+    ].forEach(ch => ipcRenderer.removeAllListeners(ch));
+  },
+});

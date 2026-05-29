@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net">
+  <title>Serial Terminal Pro</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+  <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+
+<!-- ══════════════════════ BARRA SCHEDE ═══════════════════════════ -->
+<div id="tab-bar">
+  <div id="tabs-container"></div>
+  <button id="new-tab-btn" title="Nuova scheda (Ctrl+T)">＋</button>
+  <div class="tab-bar-filler"></div>
+  <div id="port-badge-area"></div>
+  <!-- MDM nella tab-bar -->
+  <div id="mdm-tabbar-group">
+    <button id="mdm-btn" class="counter-cfg-btn mdm-cfg-btn" title="Interroga modem: legge IMEI e versione FW">Mdm</button>
+    <input id="mdm-imei" class="mdm-tabbar-input" type="text" maxlength="20" value="" placeholder="IMEI" title="IMEI del modem" readonly>
+    <input id="mdm-fw"   class="mdm-tabbar-input mdm-fw-input" type="text" maxlength="60" value="" placeholder="FW ver." title="Versione firmware modem" readonly>
+  </div>
+  <!-- Toggle dark/light mode -->
+  <button id="theme-toggle" class="icon-btn theme-toggle-btn" title="Modalità chiara/scura">🌙</button>
+  <!-- Impostazioni colori -->
+  <button id="color-settings-btn" class="icon-btn theme-toggle-btn" title="Impostazioni colori pulsanti">🎨</button>
+</div>
+
+<!-- ══════════════════════ TOOLBAR ════════════════════════════════ -->
+<div id="toolbar">
+  <!-- Port 1 -->
+  <div class="port-group" id="pg1">
+    <span class="port-label p1-color">● P1</span>
+    <select id="p1-com"    class="sel sel-com"  title="Porta COM — rilevamento automatico"></select>
+    <select id="p1-baud"   class="sel sel-baud" title="Baud rate">
+      <option>300</option><option>1200</option><option>2400</option>
+      <option>4800</option><option>9600</option><option>19200</option>
+      <option>38400</option><option>57600</option>
+      <option selected>115200</option>
+      <option>230400</option><option>460800</option><option>921600</option>
+    </select>
+    <select id="p1-data"   class="sel sel-xs" title="Data bits">
+      <option>5</option><option>6</option><option>7</option><option selected>8</option>
+    </select>
+    <select id="p1-parity" class="sel sel-xs" title="Parity">
+      <option value="none" selected>N</option><option value="even">E</option>
+      <option value="odd">O</option><option value="mark">M</option><option value="space">S</option>
+    </select>
+    <select id="p1-stop"   class="sel sel-xs" title="Stop bits">
+      <option value="1" selected>1</option><option value="2">2</option>
+    </select>
+    <select id="p1-flow"   class="sel sel-xs" title="Flow control">
+      <option value="none" selected>—</option><option value="rtscts">RTS</option>
+    </select>
+    <label class="echo-lbl" title="Eco locale"><input type="checkbox" id="p1-echo"> ECO</label>
+    <button id="p1-connect" class="conn-btn disc">CONNECT</button>
+  </div>
+
+  <div class="tb-sep"></div>
+  <button id="refresh-btn" class="icon-btn" title="Forza aggiornamento porte">⟳</button>
+  <div id="port-status-dot" class="poll-dot" title="Rilevamento automatico attivo">●</div>
+  <button id="split-btn"   class="icon-btn" title="Schermo diviso (2 porte)">⊟</button>
+  <div class="tb-sep"></div>
+
+  <!-- Port 2 -->
+  <div class="port-group hidden" id="pg2">
+    <span class="port-label p2-color">● P2</span>
+    <select id="p2-com"    class="sel sel-com"  title="Porta COM"></select>
+    <select id="p2-baud"   class="sel sel-baud" title="Baud rate">
+      <option>300</option><option>1200</option><option>2400</option>
+      <option>4800</option><option>9600</option><option>19200</option>
+      <option>38400</option><option>57600</option>
+      <option selected>115200</option>
+      <option>230400</option><option>460800</option><option>921600</option>
+    </select>
+    <select id="p2-data"   class="sel sel-xs" title="Data bits">
+      <option>5</option><option>6</option><option>7</option><option selected>8</option>
+    </select>
+    <select id="p2-parity" class="sel sel-xs" title="Parity">
+      <option value="none" selected>N</option><option value="even">E</option>
+      <option value="odd">O</option><option value="mark">M</option><option value="space">S</option>
+    </select>
+    <select id="p2-stop"   class="sel sel-xs" title="Stop bits">
+      <option value="1" selected>1</option><option value="2">2</option>
+    </select>
+    <select id="p2-flow"   class="sel sel-xs" title="Flow control">
+      <option value="none" selected>—</option><option value="rtscts">RTS</option>
+    </select>
+    <label class="echo-lbl" title="Eco locale"><input type="checkbox" id="p2-echo"> ECO</label>
+    <button id="p2-connect" class="conn-btn disc">CONNECT</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ MAIN ═══════════════════════════════════ -->
+<div id="main-content">
+  <div id="term-area">
+    <!-- .tab-term-group creati dinamicamente da JS per ogni scheda -->
+  </div>
+
+  <div id="sidebar">
+    <div id="sb-header">
+      <span>PULSANTI</span>
+      <button id="add-btn" title="Nuovo pulsante">+</button>
+    </div>
+    <div id="btn-list"></div>
+    <div id="sb-footer">
+      <button id="edit-btn">✎ MODIFICA</button>
+      <div id="datetime-display">
+        <div class="dt-row">
+          <span class="dt-label">Data</span>
+          <span id="dt-date" class="dt-value">—</span>
+        </div>
+        <div class="dt-row">
+          <span class="dt-label">Ora</span>
+          <span id="dt-time" class="dt-value">—</span>
+        </div>
+        <div class="dt-row">
+          <span class="dt-label">UTC</span>
+          <span id="dt-utc" class="dt-value dt-utc">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ RIGA CONTATORE + LOG ═══════════════════ -->
+<div id="extra-bar">
+  <!-- Toggle log -->
+  <label class="log-toggle-lbl" title="Abilita/disabilita log su file">
+    <input type="checkbox" id="log-enable">
+    <span class="log-toggle-track"><span class="log-toggle-thumb"></span></span>
+    <span class="log-toggle-txt">LOG</span>
+  </label>
+  <input id="log-name" class="log-name-input" type="text"
+         placeholder="nome-log  (auto: data+ora se vuoto)"
+         autocomplete="off" spellcheck="false" title="Nome del file di log">
+
+  <div class="extra-sep"></div>
+
+  <!-- Pulsante configurabile TELEFONO -->
+  <button id="phone-btn" class="counter-cfg-btn phone-cfg-btn" title="Clicca per inviare numero telefono">TEL</button>
+  <button id="phone-edit-btn" class="icon-btn counter-edit-icon phone-edit-icon hidden" title="Configura pulsante telefono">✎</button>
+  <input id="phone-number" class="counter-input phone-input" type="text" inputmode="tel" maxlength="20" value="" placeholder="Numero tel." title="Numero di telefono">
+
+  <div class="extra-sep"></div>
+
+  <!-- Pulsante configurabile contatore -->
+  <button id="counter-btn" class="counter-cfg-btn" title="Clicca per inviare · Modifica: tasto ✎">CNT</button>
+  <button id="counter-edit-btn" class="icon-btn counter-edit-icon hidden" title="Configura pulsante contatore">✎</button>
+  <!-- Due campi numerici sincroni -->
+  <input id="counter-a" class="counter-input" type="text" inputmode="numeric" maxlength="7" value="0" title="Valore A (5-7 cifre)">
+  <input id="counter-b" class="counter-input" type="text" inputmode="numeric" maxlength="7" value="0" title="Valore B (5-7 cifre)">
+  <!-- Campo testo libero -->
+  <input id="counter-text" class="counter-input counter-text-input" type="text" maxlength="30" placeholder="testo…" title="Testo aggiuntivo (opzionale)">
+  <!-- + e - -->
+  <button id="counter-minus" class="counter-pm-btn" title="Decrementa (−1)">−</button>
+  <button id="counter-plus"  class="counter-pm-btn" title="Incrementa (+1)">+</button>
+</div>
+
+<!-- ══════════════════════ BARRA INFERIORE ════════════════════════ -->
+<div id="bottom-bar">
+  <select id="active-port" class="sel sel-sm" title="Porta destinazione">
+    <option value="1">PORT 1</option>
+    <option value="2">PORT 2</option>
+    <option value="both">ENTRAMBE</option>
+  </select>
+  <select id="line-end" class="sel sel-sm" title="Fine riga">
+    <option value="CRLF" selected>CR+LF</option>
+    <option value="CR">CR</option>
+    <option value="LF">LF</option>
+    <option value="NONE">Nessuno</option>
+  </select>
+  <input id="user-input" type="text"
+         placeholder="Scrivi un comando… (accodato al pulsante premuto)"
+         autocomplete="off" spellcheck="false">
+  <button id="send-btn">➤ INVIA</button>
+  <button id="clr-all-btn" title="Pulisci terminale attivo">CLR</button>
+</div>
+
+<!-- ══════════════════════ MODAL CONTATORE ════════════════════════ -->
+<div id="counter-overlay" class="hidden">
+  <div id="counter-modal">
+    <div id="modal-hdr">
+      <h2>Configura pulsante contatore</h2>
+      <button id="counter-modal-x">✕</button>
+    </div>
+    <div class="fg">
+      <label>Titolo pulsante</label>
+      <input id="cf-title" type="text" placeholder="es. CNT, STEP, IDX…" maxlength="10">
+    </div>
+    <div class="fg">
+      <label>Comando inviato alla porta</label>
+      <input id="cf-cmd" type="text" placeholder="es. SET_ADDR">
+      <p class="hint">I valori dei due campi numerici (e il testo opzionale) vengono accodati automaticamente con spazio.</p>
+    </div>
+    <div class="fg">
+      <label>Colore</label>
+      <input id="cf-color" type="color" value="#1e5f3a">
+    </div>
+    <div class="modal-actions">
+      <span style="flex:1"></span>
+      <button id="cf-cancel" class="btn-sec">Annulla</button>
+      <button id="cf-save"   class="btn-pri">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL TELEFONO ════════════════════════ -->
+<div id="phone-overlay" class="hidden">
+  <div id="phone-modal">
+    <div id="modal-hdr">
+      <h2>Configura pulsante telefono</h2>
+      <button id="phone-modal-x">✕</button>
+    </div>
+    <div class="fg">
+      <label>Titolo pulsante</label>
+      <input id="pf-title" type="text" placeholder="es. TEL, CALL, DIAL…" maxlength="10">
+    </div>
+    <div class="fg">
+      <label>Comando inviato alla porta</label>
+      <input id="pf-cmd" type="text" placeholder="es. ATD, DIAL">
+      <p class="hint">Il numero di telefono viene accodato automaticamente con spazio.</p>
+    </div>
+    <div class="fg">
+      <label>Colore</label>
+      <input id="pf-color" type="color" value="#5f3a1e">
+    </div>
+    <div class="modal-actions">
+      <span style="flex:1"></span>
+      <button id="pf-cancel" class="btn-sec">Annulla</button>
+      <button id="pf-save"   class="btn-pri">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL IMPOSTAZIONI COLORI ════════════ -->
+<div id="color-settings-overlay" class="hidden">
+  <div id="color-settings-modal">
+    <div id="modal-hdr">
+      <h2>⚙ Impostazioni colori pulsanti</h2>
+      <button id="color-settings-x">✕</button>
+    </div>
+
+    <div class="cs-section-title">Pulsanti configurabili (barra extra)</div>
+    <div class="fg-row">
+      <div class="fg">
+        <label>Testo pulsante CNT</label>
+        <input id="cs-cnt-text-color" type="color" value="#ffffff">
+      </div>
+      <div class="fg">
+        <label>Testo pulsante TEL</label>
+        <input id="cs-tel-text-color" type="color" value="#ffffff">
+      </div>
+    </div>
+
+    <div class="cs-section-title">Pulsanti fissi (barra inferiore)</div>
+    <div class="fg-row">
+      <div class="fg">
+        <label>Testo INVIA</label>
+        <input id="cs-send-text-color" type="color" value="#0d1117">
+      </div>
+      <div class="fg">
+        <label>Sfondo INVIA</label>
+        <input id="cs-send-bg-color" type="color" value="#58a6ff">
+      </div>
+    </div>
+    <div class="fg-row">
+      <div class="fg">
+        <label>Testo CLR</label>
+        <input id="cs-clr-text-color" type="color" value="#8b949e">
+      </div>
+      <div class="fg">
+        <label>Sfondo CLR</label>
+        <input id="cs-clr-bg-color" type="color" value="#30363d">
+      </div>
+    </div>
+
+    <div class="cs-section-title">Pulsanti CONNECT</div>
+    <div class="fg-row">
+      <div class="fg">
+        <label>Testo CONNECT</label>
+        <input id="cs-conn-text-color" type="color" value="#0d1117">
+      </div>
+      <div class="fg">
+        <label>Testo DISCONNECT</label>
+        <input id="cs-disconn-text-color" type="color" value="#ffffff">
+      </div>
+    </div>
+
+    <div class="cs-section-title">Pulsanti sidebar (configurabili)</div>
+    <div class="fg-row">
+      <div class="fg">
+        <label>Testo pulsanti sidebar</label>
+        <input id="cs-sb-text-color" type="color" value="#ffffff">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="cs-reset" class="btn-danger">↺ Ripristina default</button>
+      <span style="flex:1"></span>
+      <button id="cs-cancel" class="btn-sec">Annulla</button>
+      <button id="cs-save"   class="btn-pri">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL EDITOR ══════════════════════════ -->
+<div id="overlay" class="hidden">
+  <div id="modal">
+    <div id="modal-hdr">
+      <h2 id="modal-title">Nuovo Pulsante</h2>
+      <button id="modal-x">✕</button>
+    </div>
+
+    <div class="fg">
+      <label>Titolo <em>(testo sul pulsante)</em></label>
+      <input id="f-title" type="text" placeholder="es. Reset, Ping, Status…" maxlength="30">
+    </div>
+
+    <div class="fg">
+      <label>Comando inviato alla porta</label>
+      <input id="f-cmd" type="text" placeholder="es. AT+RESET  o  GET /status">
+      <p class="hint">Usa <code>{UTC}</code> per data/ora UTC estesa, oppure <code>{UTCSHORT}</code> per il formato compatto <strong>ddmmaa hhmmss</strong> (senza separatori). Il testo della <strong>barra comandi</strong> viene sempre accodato.</p>
+    </div>
+
+    <div class="fg">
+      <label>Comportamento</label>
+      <div class="check-row">
+        <label class="chk-lbl">
+          <input type="checkbox" id="f-autosend" checked>
+          <span class="chk-box"></span>
+          Invio automatico — invia comando + barra comandi subito
+        </label>
+      </div>
+      <div id="space-opt" class="sub-opt hidden">
+        <label class="chk-lbl">
+          <input type="checkbox" id="f-space">
+          <span class="chk-box"></span>
+          Aggiungi uno spazio dopo il comando (nella barra)
+        </label>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Dimensione pulsante</label>
+      <div class="size-row">
+        <label class="size-opt"><input type="radio" name="f-size" value="small"><span class="size-pill sz-small-preview">Piccolo</span></label>
+        <label class="size-opt"><input type="radio" name="f-size" value="medium" checked><span class="size-pill sz-medium-preview">Normale</span></label>
+        <label class="size-opt"><input type="radio" name="f-size" value="large"><span class="size-pill sz-large-preview">Grande</span></label>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Larghezza colonne</label>
+      <div class="size-row">
+        <label class="size-opt"><input type="radio" name="f-width" value="1" checked><span class="size-pill sz-small-preview">1 colonna</span></label>
+        <label class="size-opt"><input type="radio" name="f-width" value="2"><span class="size-pill sz-medium-preview">2 colonne</span></label>
+      </div>
+    </div>
+
+    <div class="fg-row">
+      <div class="fg">
+        <label>Colore</label>
+        <input id="f-color" type="color" value="#1e3a5f">
+      </div>
+      <div class="fg" style="flex:2">
+        <label>Porta target</label>
+        <select id="f-port">
+          <option value="active">Porta attiva (dal selettore in basso)</option>
+          <option value="1">PORT 1</option>
+          <option value="2">PORT 2</option>
+          <option value="both">Entrambe</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Posizione <em>(1 = primo in alto)</em></label>
+      <input id="f-order" type="number" min="1" value="1" style="width:80px">
+    </div>
+
+    <div class="modal-actions">
+      <button id="m-delete" class="btn-danger hidden">🗑 Elimina</button>
+      <span style="flex:1"></span>
+      <button id="m-cancel" class="btn-sec">Annulla</button>
+      <button id="m-save"   class="btn-pri">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="src/renderer.js"></script>
+</body>
+</html>
