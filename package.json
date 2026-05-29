@@ -30,7 +30,7 @@
     "publish": {
       "provider": "github",
       "owner": "Dammat3",
-      "repo": "Serial-Terminal-Pro"
+      "repo": "Serial-Terminal-Pro",
 	  "releaseType": "release"
     },
     "nsis": {
