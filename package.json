@@ -8,7 +8,7 @@
     "start": "electron .",
     "postinstall": "electron-rebuild -f -w serialport",
     "rebuild": "electron-rebuild -f -w serialport",
-    "build": "electron-builder --win --x64"
+    "build": "electron-builder --win --x64 --publish always"
   },
   "dependencies": {
     "electron-store": "^8.2.0",
