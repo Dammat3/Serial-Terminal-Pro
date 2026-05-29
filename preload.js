@@ -26,16 +26,17 @@ contextBridge.exposeInMainWorld('serialAPI', {
   onToggleFkeyBar: (cb) => ipcRenderer.on('toggle-fkey-bar', (_, v) => cb(v)),
   onReopenLastTab: (cb) => ipcRenderer.on('reopen-last-tab', ()    => cb()),
   // ── Auto-update ──────────────────────────────────────────────────────────
-  onUpdateChecking:  (cb) => ipcRenderer.on('update-checking',  ()    => cb()),
-  onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, v) => cb(v)),
-  onUpdateProgress:  (cb) => ipcRenderer.on('update-progress',  (_, p) => cb(p)),
-  onUpdateDownloaded:(cb) => ipcRenderer.on('update-downloaded',(_, v) => cb(v)),
+  onUpdateChecking:  (cb) => ipcRenderer.on('update-checking',     ()    => cb()),
+  onUpdateAvailable: (cb) => ipcRenderer.on('update-available',    (_, v) => cb(v)),
+  onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', () => cb()),
+  onUpdateProgress:  (cb) => ipcRenderer.on('update-progress',     (_, p) => cb(p)),
+  onUpdateDownloaded:(cb) => ipcRenderer.on('update-downloaded',   (_, v) => cb(v)),
   installUpdate:     ()   => ipcRenderer.invoke('install-update'),
   checkForUpdates:   ()   => ipcRenderer.invoke('check-for-updates-manual'),
   removeListeners: () => {
     ['port-data','port-closed','port-error','apply-config','open-fkey-modal',
      'toggle-fkey-bar','reopen-last-tab',
-     'update-checking','update-available','update-progress','update-downloaded',
+     'update-checking','update-available','update-not-available','update-progress','update-downloaded',
     ].forEach(ch => ipcRenderer.removeAllListeners(ch));
   },
 });

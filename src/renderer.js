@@ -2308,6 +2308,8 @@ document.addEventListener('DOMContentLoaded', () => {
     showUpdateBanner('🔍 Controllo aggiornamenti…', false, 'info'));
   window.serialAPI.onUpdateAvailable?.(v =>
     showUpdateBanner(`⬇ Aggiornamento ${v} disponibile — scaricamento in corso…`, false, 'info'));
+  window.serialAPI.onUpdateNotAvailable?.(() =>
+    showUpdateBanner('✔ Applicazione aggiornata all\'ultima versione', false, 'ok'));
   window.serialAPI.onUpdateProgress?.(p =>
     showUpdateBanner(`⬇ Download aggiornamento… ${p}%`, false, 'info'));
   window.serialAPI.onUpdateDownloaded?.(v =>
@@ -2345,7 +2347,7 @@ function showUpdateBanner(msg, clickable, type = 'info') {
     document.body.appendChild(bar);
   }
 
-  const colors = { info: '#1f6feb', success: '#2ea043', warning: '#9e6a03' };
+  const colors = { info: '#1f6feb', success: '#2ea043', warning: '#9e6a03', ok: '#238636' };
   bar.style.background = colors[type] || colors.info;
   bar.style.cursor     = clickable ? 'pointer' : 'default';
 
@@ -2362,8 +2364,11 @@ function showUpdateBanner(msg, clickable, type = 'info') {
     ? (e) => { if (e.target !== bar.querySelector('button')) window.serialAPI.installUpdate(); }
     : null;
 
-  // Il banner rimane visibile finché l'utente non lo chiude manualmente (pulsante ×)
+  // Solo il tipo 'ok' (già aggiornato) sparisce da solo dopo 4s — tutti gli altri restano
   clearTimeout(bar._autoHide);
+  if (type === 'ok') {
+    bar._autoHide = setTimeout(() => bar.remove(), 4000);
+  }
 }
 
 /** Avvolge #tabs-container in un wrapper con frecce di scorrimento. */

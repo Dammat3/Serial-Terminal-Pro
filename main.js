@@ -78,6 +78,10 @@ function setupAutoUpdater() {
     win?.webContents.send('update-available', info.version);
   });
 
+  autoUpdater.on('update-not-available', () => {
+    win?.webContents.send('update-not-available');
+  });
+
   autoUpdater.on('download-progress', progress => {
     win?.webContents.send('update-progress', Math.round(progress.percent));
   });
