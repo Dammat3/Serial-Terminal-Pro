@@ -71,8 +71,9 @@ let fkeyCfg = Array.from({ length: FKEY_COUNT }, (_, i) => ({
 }));
 
 // ─── STATO LOG ───────────────────────────────────────────────────────────────
-let logEnabled  = false;
-let logFileName = '';   // vuoto = auto
+let logEnabled   = false;
+let logFileName  = '';   // vuoto = auto
+let logActiveName = '';  // nome congelato al momento dell'attivazione
 
 // ─── STATO MDM ───────────────────────────────────────────────────────────────
 let mdmListening    = false;   // true mentre aspettiamo la risposta del modem
@@ -1089,6 +1090,7 @@ function setupPortEvents() {
     if (!st) return;
     const text = new TextDecoder('utf-8',{fatal:false}).decode(new Uint8Array(bytes));
     st.terms[portNum]?.write(text);
+    logLine(text);
 
     // Accumula nel buffer MDM se stiamo aspettando la risposta
     if (mdmListening && tabId === mdmTabId && portNum === mdmPortNum) {
@@ -1932,7 +1934,7 @@ function autoLogName() {
 
 function logLine(text) {
   if (!logEnabled) return;
-  const name = logFileName.trim() || autoLogName();
+  const name = logActiveName || autoLogName();
   if (window.serialAPI?.appendLog) {
     window.serialAPI.appendLog({ name, text });
   }
@@ -1944,8 +1946,12 @@ function setupLogToggle() {
   toggle.addEventListener('change', () => {
     logEnabled = toggle.checked;
     nameEl.disabled = !logEnabled;
-    if (logEnabled && !logFileName.trim()) {
-      nameEl.placeholder = autoLogName() + '  (auto)';
+    if (logEnabled) {
+      // Congela il nome al momento dell'attivazione
+      logActiveName = logFileName.trim() || autoLogName();
+      nameEl.placeholder = logActiveName + '  (auto)';
+    } else {
+      logActiveName = '';
     }
   });
   nameEl.addEventListener('input', () => { logFileName = nameEl.value; });
