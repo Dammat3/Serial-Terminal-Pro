@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 [README.md](https://github.com/user-attachments/files/28397984/README.md)
+=======
+>>>>>>> edb9182 (Aggiunto CTRL+C/V)
 # Serial Terminal Pro
 
 **Versione 2.0.3** — Terminale seriale professionale con pulsanti programmabili, multi-porta, SSH, Telnet e timestamp UTC.
@@ -34,6 +37,7 @@ Il programma segue l'architettura standard di Electron, con una separazione nett
 
 ```
 ┌─────────────────────────────────────────────────────────┐
+<<<<<<< HEAD
 │                   Processo Principale (main.js)         │
 │                                                         │
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐   │
@@ -53,6 +57,27 @@ Il programma segue l'architettura standard di Electron, con una separazione nett
 │  │ xterm.js │  │ FitAddon │  │  Schede  │  │Pulsanti│   │
 │  │(Terminal)│  │(Resize)  │  │ (Tabs)   │  │(F1-F12)│   │
 │  └──────────┘  └──────────┘  └──────────┘  └────────┘   │
+=======
+│                   Processo Principale (main.js)          │
+│                                                          │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
+│  │  SerialPort │  │     ssh2     │  │   net.Socket  │  │
+│  │   (RS232)   │  │    (SSH)     │  │   (Telnet)    │  │
+│  └─────────────┘  └──────────────┘  └───────────────┘  │
+│         │                │                  │            │
+│         └────────────────┴──────────────────┘            │
+│                          │ IPC                           │
+│                     ipcMain.handle                       │
+└──────────────────────────┼──────────────────────────────┘
+                           │ contextBridge (preload.js)
+┌──────────────────────────┼──────────────────────────────┐
+│              Processo Renderer (renderer.js)             │
+│                                                          │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │
+│  │ xterm.js │  │ FitAddon │  │  Schede  │  │Pulsanti│ │
+│  │(Terminal)│  │(Resize)  │  │ (Tabs)   │  │(F1-F12)│ │
+│  └──────────┘  └──────────┘  └──────────┘  └────────┘ │
+>>>>>>> edb9182 (Aggiunto CTRL+C/V)
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -211,7 +236,11 @@ Ogni scheda memorizza in modo indipendente:
 
 ### 3. Vista split (schermo diviso)
 
+<<<<<<< HEAD
 Il pulsante **SPLIT** nella barra superiore attiva la visualizzazione affiancata di PORT 1 e PORT 2:
+=======
+Il pulsante **SPLIT** nella barra inferiore attiva la visualizzazione affiancata di PORT 1 e PORT 2:
+>>>>>>> edb9182 (Aggiunto CTRL+C/V)
 
 - I due pannelli sono separati da un **divisore trascinabile** (cursore `col-resize`)
 - La proporzione (es. 60%/40%) viene salvata per scheda e ripristinata alla riapertura
@@ -222,7 +251,11 @@ Il pulsante **SPLIT** nella barra superiore attiva la visualizzazione affiancata
 
 ### 4. Pulsanti programmabili
 
+<<<<<<< HEAD
 La sidebar destra ospita una griglia **4 colonne** di pulsanti completamente personalizzabili.
+=======
+La sidebar sinistra ospita una griglia **4 colonne** di pulsanti completamente personalizzabili.
+>>>>>>> edb9182 (Aggiunto CTRL+C/V)
 
 #### Creazione e modifica
 

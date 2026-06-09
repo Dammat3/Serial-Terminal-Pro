@@ -382,6 +382,60 @@ input,textarea,select{cursor:default!important}
 #clr-all-btn:hover{border-color:var(--err);color:var(--err)}
 
 
+/* ═══ INFO PANEL (in fondo alla sidebar) ═════════════════════════ */
+#info-panel{
+  display:flex; flex-direction:row;
+  border-top:1px solid var(--bord); flex-shrink:0;
+  padding:6px 6px 4px;
+  background:var(--bg2);
+}
+.info-col{
+  display:flex; flex-direction:column; gap:2px;
+  flex:1; min-width:0;
+}
+.info-col-hdr{
+  display:flex; align-items:center; gap:3px; margin-bottom:3px;
+}
+.info-fields{
+  display:flex; flex-direction:column; gap:2px;
+}
+.info-row{
+  display:flex; align-items:center; gap:3px;
+}
+.info-lbl{
+  font-size:9px; font-weight:600; color:var(--txt2);
+  text-transform:uppercase; letter-spacing:.2px;
+  white-space:nowrap; flex-shrink:0;
+  width:38px; text-align:right; overflow:hidden; text-overflow:ellipsis;
+}
+.info-val{
+  flex:1; min-width:0; height:18px;
+  background:var(--bg0); color:var(--acc);
+  border:1px solid var(--bord); border-radius:3px;
+  padding:0 4px; font-family:'Consolas','Courier New',monospace;
+  font-size:10px; outline:none;
+}
+.info-btn{
+  flex:1; font-size:10px !important; height:20px !important;
+  padding:0 4px !important; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.info-panel-sep{
+  width:1px; background:var(--bord); margin:0 5px; flex-shrink:0;
+}
+
+#info-panel-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.78);
+  display:flex;align-items:center;justify-content:center;
+  z-index:200;backdrop-filter:blur(3px);
+}
+#info-panel-modal{
+  background:var(--bg1);border:1px solid var(--bord);
+  border-radius:10px;padding:22px 24px;
+  width:520px;max-width:96vw;max-height:92vh;overflow-y:auto;
+  box-shadow:0 24px 64px var(--shadow);
+}
+
 /* ═══ RIGA CONTATORE + LOG ════════════════════════════════════════ */
 #extra-bar{
   display:flex; align-items:center; gap:5px;
@@ -444,6 +498,12 @@ input,textarea,select{cursor:default!important}
 }
 .mdm-tabbar-input::placeholder{color:var(--txt2)}
 
+.mdm-clear-btn{
+  height:22px; padding:0 7px; font-size:11px;
+  color:var(--txt2); flex-shrink:0;
+}
+.mdm-clear-btn:hover{color:var(--err);border-color:var(--err);background:rgba(248,81,73,.1)}
+
 .counter-edit-icon{
   height:22px; padding:0 5px; font-size:11px; flex-shrink:0;
 }
@@ -483,6 +543,15 @@ input,textarea,select{cursor:default!important}
 .counter-pm-btn:active{transform:scale(.93)}
 
 .extra-sep{width:1px;height:20px;background:var(--bord);flex-shrink:0;margin:0 3px}
+
+/* SN CBAT */
+.sn-cbat-label{
+  font-size:10px;font-weight:600;letter-spacing:.4px;
+  color:var(--fg2);text-transform:uppercase;
+  white-space:nowrap;flex-shrink:0;
+}
+.sn-cbat-input{width:58px !important;text-align:center;letter-spacing:1px;}
+.batt-prog-btn{background:#7a3a00 !important;}
 
 /* toggle log */
 .log-toggle-lbl{
@@ -656,7 +725,18 @@ input,textarea,select{cursor:default!important}
 }
 .cs-section-title:first-of-type{margin-top:0}
 
-/* ═══ DISPLAY DATA/ORA SIDEBAR ══════════════════════════════════ */
+/* ═══ INFO PANEL COLLAPSE ═══════════════════════════════════════ */
+.info-collapse-btn{
+  margin-left:auto;
+  background:none; border:none;
+  color:var(--txt2); font-size:14px;
+  cursor:pointer; padding:0 4px;
+  line-height:1; flex-shrink:0;
+  transition:color .15s, transform .15s;
+  border-radius:3px;
+}
+.info-collapse-btn:hover{color:var(--acc);background:rgba(88,166,255,.1)}
+
 #datetime-display{
   background:var(--bg0); border:1px solid var(--bord);
   border-radius:4px; padding:5px 8px;

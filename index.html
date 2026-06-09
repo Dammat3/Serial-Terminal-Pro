@@ -21,6 +21,7 @@
     <button id="mdm-btn" class="counter-cfg-btn mdm-cfg-btn" title="Interroga modem: legge IMEI e versione FW">Mdm</button>
     <input id="mdm-imei" class="mdm-tabbar-input" type="text" maxlength="20" value="" placeholder="IMEI" title="IMEI del modem" readonly>
     <input id="mdm-fw"   class="mdm-tabbar-input mdm-fw-input" type="text" maxlength="60" value="" placeholder="FW ver." title="Versione firmware modem" readonly>
+    <button id="mdm-clear-btn" class="icon-btn mdm-clear-btn" title="Svuota IMEI e FW ver.">✕</button>
   </div>
   <!-- Toggle dark/light mode -->
   <button id="theme-toggle" class="icon-btn theme-toggle-btn" title="Modalità chiara/scura">🌙</button>
@@ -105,6 +106,46 @@
       <button id="add-btn" title="Nuovo pulsante">+</button>
     </div>
     <div id="btn-list"></div>
+
+    <!-- ── INFO PANEL (in fondo alla sidebar) ── -->
+    <div id="info-panel">
+
+      <!-- Colonna 0 -->
+      <div class="info-col" id="info-col-0">
+        <div class="info-col-hdr">
+          <button class="counter-cfg-btn info-btn" id="info-btn-0" title="Invia comando · Modifica: tasto ✎">INFO 1</button>
+          <button class="icon-btn counter-edit-icon info-edit-btn hidden" id="info-edit-btn-0" title="Configura colonna 1">✎</button>
+
+        </div>
+        <div class="info-fields" id="info-fields-0">
+          <div class="info-row"><span class="info-lbl" id="info-lbl-0-0">Campo 1</span><input class="info-val" id="info-val-0-0" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-0-1">Campo 2</span><input class="info-val" id="info-val-0-1" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-0-2">Campo 3</span><input class="info-val" id="info-val-0-2" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-0-3">Campo 4</span><input class="info-val" id="info-val-0-3" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-0-4">Campo 5</span><input class="info-val" id="info-val-0-4" type="text" readonly></div>
+        </div>
+      </div>
+
+      <div class="info-panel-sep"></div>
+
+      <!-- Colonna 1 -->
+      <div class="info-col" id="info-col-1">
+        <div class="info-col-hdr">
+          <button class="counter-cfg-btn info-btn" id="info-btn-1" title="Invia comando · Modifica: tasto ✎">INFO 2</button>
+          <button class="icon-btn counter-edit-icon info-edit-btn hidden" id="info-edit-btn-1" title="Configura colonna 2">✎</button>
+          <button class="info-collapse-btn" id="info-collapse-1" title="Mostra/nascondi campi" aria-expanded="true">▾</button>
+        </div>
+        <div class="info-fields" id="info-fields-1">
+          <div class="info-row"><span class="info-lbl" id="info-lbl-1-0">Campo 1</span><input class="info-val" id="info-val-1-0" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-1-1">Campo 2</span><input class="info-val" id="info-val-1-1" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-1-2">Campo 3</span><input class="info-val" id="info-val-1-2" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-1-3">Campo 4</span><input class="info-val" id="info-val-1-3" type="text" readonly></div>
+          <div class="info-row"><span class="info-lbl" id="info-lbl-1-4">Campo 5</span><input class="info-val" id="info-val-1-4" type="text" readonly></div>
+        </div>
+      </div>
+
+    </div>
+
     <div id="sb-footer">
       <button id="edit-btn">✎ MODIFICA</button>
       <div id="datetime-display">
@@ -121,6 +162,56 @@
           <span id="dt-utc" class="dt-value dt-utc">—</span>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL INFO PANEL ══════════════════════ -->
+<div id="info-panel-overlay" class="hidden">
+  <div id="info-panel-modal">
+    <div id="modal-hdr">
+      <h2 id="ip-modal-title">Configura colonna 1</h2>
+      <button id="ip-modal-x">✕</button>
+    </div>
+    <div class="fg">
+      <label>Titolo pulsante</label>
+      <input id="ip-title" type="text" placeholder="es. INFO, READ, GET…" maxlength="10">
+    </div>
+    <div class="fg">
+      <label>Comando inviato alla porta</label>
+      <input id="ip-cmd" type="text" placeholder="es. read info, show status">
+      <p class="hint">La risposta viene analizzata riga per riga cercando le stringhe configurate nei campi.</p>
+    </div>
+    <div class="fg">
+      <label>Colore</label>
+      <input id="ip-color" type="color" value="#1a3a5f">
+    </div>
+    <hr style="border:none;border-top:1px solid var(--bord);margin:10px 0 8px">
+    <p class="hint" style="margin-bottom:10px">Etichetta = testo mostrato a sinistra del campo. Stringa = cosa cercare nella risposta (es. <code>Revision</code> trova <code>Revision: 1.2.3</code> e mostra <code>1.2.3</code>).</p>
+    <div class="fg-row">
+      <div class="fg" style="flex:1"><label>Campo 1 — Etichetta</label><input id="ip-lbl-0" type="text" maxlength="20" placeholder="es. SN"></div>
+      <div class="fg" style="flex:2"><label>Stringa da cercare</label><input id="ip-search-0" type="text" placeholder="es. Serial Number"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg" style="flex:1"><label>Campo 2 — Etichetta</label><input id="ip-lbl-1" type="text" maxlength="20" placeholder="es. FW"></div>
+      <div class="fg" style="flex:2"><label>Stringa da cercare</label><input id="ip-search-1" type="text" placeholder="es. Firmware Version"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg" style="flex:1"><label>Campo 3 — Etichetta</label><input id="ip-lbl-2" type="text" maxlength="20" placeholder="es. HW"></div>
+      <div class="fg" style="flex:2"><label>Stringa da cercare</label><input id="ip-search-2" type="text" placeholder="es. Hardware Rev"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg" style="flex:1"><label>Campo 4 — Etichetta</label><input id="ip-lbl-3" type="text" maxlength="20" placeholder="es. Modello"></div>
+      <div class="fg" style="flex:2"><label>Stringa da cercare</label><input id="ip-search-3" type="text" placeholder="es. Model"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg" style="flex:1"><label>Campo 5 — Etichetta</label><input id="ip-lbl-4" type="text" maxlength="20" placeholder="es. IMEI"></div>
+      <div class="fg" style="flex:2"><label>Stringa da cercare</label><input id="ip-search-4" type="text" placeholder="es. imei"></div>
+    </div>
+    <div class="modal-actions">
+      <span style="flex:1"></span>
+      <button id="ip-cancel" class="btn-sec">Annulla</button>
+      <button id="ip-save"   class="btn-pri">💾 Salva</button>
     </div>
   </div>
 </div>
@@ -157,6 +248,15 @@
   <!-- + e - -->
   <button id="counter-minus" class="counter-pm-btn" title="Decrementa (−1)">−</button>
   <button id="counter-plus"  class="counter-pm-btn" title="Incrementa (+1)">+</button>
+
+  <div class="extra-sep"></div>
+
+  <!-- SN CBAT + Batt. Prog. -->
+  <span class="sn-cbat-label">SN CBAT</span>
+  <input id="sn-cbat" class="counter-input sn-cbat-input" type="text" inputmode="numeric" maxlength="5" placeholder="00000" title="Numero seriale CBAT (5 cifre)">
+  <button id="sn-cbat-minus" class="counter-pm-btn" title="Decrementa (−1)">−</button>
+  <button id="sn-cbat-plus"  class="counter-pm-btn" title="Incrementa (+1)">+</button>
+  <button id="batt-prog-btn" class="counter-cfg-btn batt-prog-btn" title="Invia comando Battery Program">Batt. Prog.</button>
 </div>
 
 <!-- ══════════════════════ BARRA INFERIORE ════════════════════════ -->
@@ -390,6 +490,75 @@
   </div>
 </div>
 
+<script>
+// ── Info panel collapse (freccia col-1 controlla entrambe) ───────
+(function(){
+  function initInfoCollapse(){
+    var btn     = document.getElementById('info-collapse-1');
+    var fields0 = document.getElementById('info-fields-0');
+    var fields1 = document.getElementById('info-fields-1');
+    var sep     = document.querySelector('.info-panel-sep');
+    if(!btn || !fields0 || !fields1) return;
+
+    // Usa max-height: molto più affidabile di height per le transizioni
+    [fields0, fields1].forEach(function(el){
+      el.style.overflow = 'hidden';
+      el.style.transition = 'max-height 0.25s ease';
+    });
+
+    function setCollapsed(collapsed, animate){
+      if(!animate){
+        [fields0, fields1].forEach(function(el){
+          el.style.transition = 'none';
+          el.style.maxHeight = collapsed ? '0px' : '500px';
+        });
+        // Riabilita transizione al prossimo frame
+        requestAnimationFrame(function(){
+          [fields0, fields1].forEach(function(el){
+            el.style.transition = 'max-height 0.25s ease';
+          });
+        });
+      } else {
+        [fields0, fields1].forEach(function(el){
+          el.style.maxHeight = collapsed ? '0px' : '500px';
+        });
+      }
+      if(sep) sep.style.display = collapsed ? 'none' : '';
+      btn.textContent = collapsed ? '\u25b8' : '\u25be';
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      localStorage.setItem('info-panel-collapsed', collapsed ? '1' : '0');
+    }
+
+    // Ripristina stato salvato
+    var saved = localStorage.getItem('info-panel-collapsed') === '1';
+    setCollapsed(saved, false);
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      setCollapsed(btn.getAttribute('aria-expanded') !== 'false', true);
+    });
+  }
+
+  // ── MDM clear button ─────────────────────────────────────────────
+  function initMdmClear(){
+    var clearBtn = document.getElementById('mdm-clear-btn');
+    if(!clearBtn) return;
+    clearBtn.addEventListener('click', function(){
+      var imei = document.getElementById('mdm-imei');
+      var fw   = document.getElementById('mdm-fw');
+      if(imei) imei.value = '';
+      if(fw)   fw.value   = '';
+    });
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ initInfoCollapse(); initMdmClear(); });
+  } else {
+    initInfoCollapse();
+    initMdmClear();
+  }
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 <script src="src/renderer.js"></script>

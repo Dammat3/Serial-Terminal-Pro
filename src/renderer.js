@@ -80,6 +80,27 @@ let mdmPortNum      = 1;       // porta su cui è stato inviato il comando
 let mdmTabId        = null;    // scheda su cui è stato inviato il comando
 let mdmTimeout      = null;    // timer di timeout
 
+// ─── STATO INFO PANEL ────────────────────────────────────────────────────────
+const INFO_COLS = 2;
+const INFO_ROWS = 5;
+
+function makeInfoColDefault(idx) {
+  return {
+    title:   `INFO ${idx + 1}`,
+    command: '',
+    color:   idx === 0 ? '#1a3a5f' : '#1a4f3a',
+    fields:  Array.from({ length: INFO_ROWS }, (_, r) => ({ label: `Campo ${r + 1}`, search: '' }))
+  };
+}
+
+let infoPanelCfg   = Array.from({ length: INFO_COLS }, (_, i) => makeInfoColDefault(i));
+let infoListening  = [false, false];
+let infoBuffer     = ['', ''];
+let infoPortNum    = [1, 1];
+let infoTabId      = [null, null];
+let infoTimeout    = [null, null];
+let editInfoColIdx = 0;
+
 // ─── IMPOSTAZIONI COLORI PULSANTI ─────────────────────────────────────────────
 const COLOR_SETTINGS_DEFAULTS = {
   // ── Pulsanti esistenti ────────────────────────────────────────────────────
@@ -179,6 +200,19 @@ async function init() {
       if (saved.fkeyCfg && Array.isArray(saved.fkeyCfg)) {
         saved.fkeyCfg.forEach((k, i) => { if (fkeyCfg[i]) fkeyCfg[i] = { ...fkeyCfg[i], ...k }; });
       }
+      if (saved.infoPanelCfg && Array.isArray(saved.infoPanelCfg)) {
+        saved.infoPanelCfg.forEach((col, ci) => {
+          if (infoPanelCfg[ci]) {
+            infoPanelCfg[ci] = { ...infoPanelCfg[ci], ...col };
+            if (Array.isArray(col.fields)) {
+              infoPanelCfg[ci].fields = col.fields.map((f, ri) => ({
+                ...(infoPanelCfg[ci].fields[ri] || makeInfoColDefault(ci).fields[ri]),
+                ...f
+              }));
+            }
+          }
+        });
+      }
     }
   } catch(e) { console.warn('Config load:', e); }
   applyTheme(darkMode);
@@ -217,6 +251,7 @@ async function init() {
   startPortPolling();
   applyCounterCfg();
   applyPhoneCfg();
+  applyInfoPanelCfg();
   applyColorSettings();
   syncCounterFields();
   window.addEventListener('resize', () => {
@@ -426,15 +461,43 @@ function setupTabTerminals(tabId) {
     // Se il tasto è configurato e attivo, esegue il comando e blocca xterm.
     term.attachCustomKeyEventHandler(e => {
       if (e.type !== 'keydown') return true;
+
+      // ── Ctrl+C → copia la selezione (se c'è testo selezionato)
+      //            altrimenti lascia passare l'ETX alla porta
+      if (e.ctrlKey && e.key === 'c') {
+        const sel = term.getSelection();
+        if (sel) {
+          navigator.clipboard.writeText(sel).catch(() => {});
+          return false;   // blocca xterm — non invia \x03
+        }
+        return true;      // nessuna selezione → ETX passa normalmente
+      }
+
+      // ── Ctrl+V → incolla dal clipboard nel terminale
+      if (e.ctrlKey && e.key === 'v') {
+        navigator.clipboard.readText().then(text => {
+          if (!text) return;
+          const ctype = state.connType?.[pn] || 'serial';
+          const bytes = Array.from(new TextEncoder().encode(text));
+          if (ctype === 'ssh' || ctype === 'telnet') {
+            window.serialAPI.writeRemote({ portId: `${tabId}:${pn}`, bytes });
+          } else {
+            window.serialAPI.writePort({ portId: `${tabId}:${pn}`, bytes });
+          }
+        }).catch(() => {});
+        return false;   // blocca xterm
+      }
+
+      // ── F1–F12 (logica esistente) ─────────────────────────────
       const fKeys = ['F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12'];
       const fIdx  = fKeys.indexOf(e.key);
-      if (fIdx === -1) return true;           // non è un F-key → lascia passare
+      if (fIdx === -1) return true;
       const fk = fkeyCfg[fIdx];
       if (fk?.enabled && fk.command) {
         handleFkeyPress(fk);
-        return false;                         // blocca xterm: non invia escape sequence
+        return false;
       }
-      return true;                            // F-key non configurato → comportamento normale
+      return true;
     });
 
     // Click nel terminale → imposta porta attiva
@@ -873,9 +936,9 @@ function parseMdmBuffer(text) {
         imei = mImei[1].trim();
       }
     }
-    // Cerca versione FW dopo "ver(QGMR):" oppure "revisione fw:" (case-insensitive)
+    // Cerca versione FW dopo "ver(QGMR):", "revisione fw:" oppure "Revision:" (case-insensitive)
     if (!fw) {
-      const mFw = line.match(/(?:ver\(QGMR\)|revisione\s+fw)\s*:\s*(.+)/i);
+      const mFw = line.match(/(?:ver\(QGMR\)|revisione\s+fw|Revision)\s*:\s*(.+)/i);
       if (mFw) {
         fw = mFw[1].trim();
       }
@@ -896,6 +959,119 @@ function parseMdmBuffer(text) {
   if (fw)   document.getElementById('mdm-fw').value   = fw;
 }
 
+// ═══════════════════════ INFO PANEL ══════════════════════════════════════════
+
+function applyInfoPanelCfg() {
+  for (let ci = 0; ci < INFO_COLS; ci++) {
+    const col = infoPanelCfg[ci];
+    const btn = document.getElementById(`info-btn-${ci}`);
+    btn.textContent = col.title || `INFO ${ci + 1}`;
+    btn.style.backgroundColor = col.color || (ci === 0 ? '#1a3a5f' : '#1a4f3a');
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'transparent';
+    for (let ri = 0; ri < INFO_ROWS; ri++) {
+      const f = col.fields[ri] || { label: `Campo ${ri + 1}`, search: '' };
+      document.getElementById(`info-lbl-${ci}-${ri}`).textContent = f.label || `Campo ${ri + 1}`;
+    }
+  }
+}
+
+async function handleInfoBtnClick(ci) {
+  const tabId  = activeTabId;
+  const active = document.getElementById('active-port').value;
+  const pn     = active === '2' ? 2 : 1;
+  const st     = tabState[tabId];
+
+  if (!st?.connected[pn]) {
+    termErr(tabId, pn, `INFO ${ci + 1}: porta non connessa.`);
+    return;
+  }
+
+  const col = infoPanelCfg[ci];
+  const cmd = (col.command || '').trim();
+  if (!cmd) return;
+
+  // Pulisce i campi valore
+  for (let ri = 0; ri < INFO_ROWS; ri++) {
+    document.getElementById(`info-val-${ci}-${ri}`).value = '';
+  }
+
+  // Avvia ascolto
+  infoListening[ci] = true;
+  infoBuffer[ci]    = '';
+  infoPortNum[ci]   = pn;
+  infoTabId[ci]     = tabId;
+
+  if (infoTimeout[ci]) clearTimeout(infoTimeout[ci]);
+  infoTimeout[ci] = setTimeout(() => {
+    if (infoListening[ci]) {
+      infoListening[ci] = false;
+      parseInfoBuffer(ci, infoBuffer[ci]);
+    }
+  }, 5000);
+
+  const le = lineEnding();
+  await writePort(tabId, pn, cmd + le);
+}
+
+function parseInfoBuffer(ci, text) {
+  // Rimuove sequenze ANSI e normalizza le righe
+  const clean = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
+  const lines = clean.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+  const col = infoPanelCfg[ci];
+  for (let ri = 0; ri < INFO_ROWS; ri++) {
+    const f = col.fields[ri];
+    if (!f?.search?.trim()) continue;
+    const esc = f.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    for (const line of lines) {
+      // Cerca "stringa: valore" oppure "stringa valore" (colon opzionale)
+      const m = line.match(new RegExp(esc + '\\s*:?\\s*(.+)', 'i'));
+      if (m) {
+        document.getElementById(`info-val-${ci}-${ri}`).value = m[1].trim();
+        break;
+      }
+    }
+  }
+}
+
+function openInfoModal(ci) {
+  editInfoColIdx = ci;
+  const col = infoPanelCfg[ci];
+  document.getElementById('ip-modal-title').textContent = `Configura colonna ${ci + 1}`;
+  document.getElementById('ip-title').value = col.title   || '';
+  document.getElementById('ip-cmd').value   = col.command || '';
+  document.getElementById('ip-color').value = col.color   || (ci === 0 ? '#1a3a5f' : '#1a4f3a');
+  for (let ri = 0; ri < INFO_ROWS; ri++) {
+    const f = col.fields[ri] || { label: '', search: '' };
+    document.getElementById(`ip-lbl-${ri}`).value    = f.label  || '';
+    document.getElementById(`ip-search-${ri}`).value = f.search || '';
+  }
+  document.getElementById('info-panel-overlay').classList.remove('hidden');
+  document.getElementById('ip-title').focus();
+}
+
+function closeInfoModal() {
+  document.getElementById('info-panel-overlay').classList.add('hidden');
+}
+
+function saveInfoModal() {
+  const ci  = editInfoColIdx;
+  const col = infoPanelCfg[ci];
+  col.title   = document.getElementById('ip-title').value.trim() || `INFO ${ci + 1}`;
+  col.command = document.getElementById('ip-cmd').value;
+  col.color   = document.getElementById('ip-color').value;
+  for (let ri = 0; ri < INFO_ROWS; ri++) {
+    col.fields[ri] = {
+      label:  document.getElementById(`ip-lbl-${ri}`).value.trim()    || `Campo ${ri + 1}`,
+      search: document.getElementById(`ip-search-${ri}`).value.trim(),
+    };
+  }
+  applyInfoPanelCfg();
+  closeInfoModal();
+  saveConfig();
+}
+
 // ─── EVENTI PORTA (main → renderer) ──────────────────────────────────────────
 function setupPortEvents() {
   window.serialAPI.onPortData(({ portId, bytes }) => {
@@ -911,11 +1087,30 @@ function setupPortEvents() {
       // Controlla se abbiamo già entrambi i valori per terminare prima del timeout
       const cleanBuf = mdmBuffer.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
       const hasImei = /imei\s*:/i.test(cleanBuf) || /^\d{15}$/m.test(cleanBuf);
-      const hasFw   = /(?:ver\(QGMR\)|revisione\s+fw)\s*:/i.test(cleanBuf);
+      const hasFw   = /(?:ver\(QGMR\)|revisione\s+fw|Revision)\s*:/i.test(cleanBuf);
       if (hasImei && hasFw) {
         mdmListening = false;
         if (mdmTimeout) { clearTimeout(mdmTimeout); mdmTimeout = null; }
         parseMdmBuffer(mdmBuffer);
+      }
+    }
+
+    // Accumula nei buffer INFO PANEL
+    for (let ci = 0; ci < INFO_COLS; ci++) {
+      if (infoListening[ci] && tabId === infoTabId[ci] && portNum === infoPortNum[ci]) {
+        infoBuffer[ci] += text;
+        const cleanBuf = infoBuffer[ci].replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
+        // Termina anticipatamente se tutte le stringhe configurate sono trovate
+        const allFound = infoPanelCfg[ci].fields.every(f => {
+          if (!f.search?.trim()) return true;
+          const esc = f.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          return new RegExp(esc + '\\s*:?\\s*', 'i').test(cleanBuf);
+        });
+        if (allFound) {
+          infoListening[ci] = false;
+          if (infoTimeout[ci]) { clearTimeout(infoTimeout[ci]); infoTimeout[ci] = null; }
+          parseInfoBuffer(ci, infoBuffer[ci]);
+        }
       }
     }
   });
@@ -1060,6 +1255,7 @@ async function saveConfig() {
     counterValue,
     phoneCfg,
     fkeyCfg,
+    infoPanelCfg,
   };
   await window.serialAPI.saveConfig(data);
 }
@@ -1611,6 +1807,26 @@ function parseCounterInput(val) {
   return isNaN(n) ? 0 : Math.max(0, n);
 }
 
+// ═══════════════════════ BATTERY PROGRAM ═════════════════════════════════════
+
+async function handleBattProgClick() {
+  const snCbat = document.getElementById('sn-cbat').value.trim();
+  if (!/^\d{5}$/.test(snCbat)) {
+    alert('Inserire esattamente 5 cifre nel campo SN CBAT.');
+    document.getElementById('sn-cbat').focus();
+    return;
+  }
+  const now = new Date();
+  const aa  = String(now.getFullYear()).slice(-2);          // ultime 2 cifre anno
+  const mm  = String(now.getMonth() + 1).padStart(2, '0'); // mese 01-12
+  const cmd = `battery program 1 ${aa}${mm}${snCbat}/1/41600`;
+  const le  = lineEnding();
+  const full = cmd + le;
+  await writeTarget(full, 'active');
+  logLine(full);
+  focusActiveTerminal();
+}
+
 // ═══════════════════════ TELEFONO ════════════════════════════════════════════
 
 function applyPhoneCfg() {
@@ -1811,6 +2027,41 @@ function setupListeners() {
   // ─── MDM ─────────────────────────────────────────────────────────────────
   document.getElementById('mdm-btn').addEventListener('click', handleMdmClick);
 
+  // ─── Info Panel ──────────────────────────────────────────────────────────
+  for (let ci = 0; ci < INFO_COLS; ci++) {
+    const c = ci;
+    document.getElementById(`info-btn-${ci}`).addEventListener('click', () => handleInfoBtnClick(c));
+    document.getElementById(`info-edit-btn-${ci}`).addEventListener('click', () => openInfoModal(c));
+  }
+  document.getElementById('ip-modal-x').addEventListener('click', closeInfoModal);
+  document.getElementById('ip-cancel').addEventListener('click', closeInfoModal);
+  document.getElementById('ip-save').addEventListener('click', saveInfoModal);
+  document.getElementById('info-panel-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('info-panel-overlay')) closeInfoModal();
+  });
+
+  // ─── Battery Program ─────────────────────────────────────────────────────
+  document.getElementById('batt-prog-btn').addEventListener('click', handleBattProgClick);
+
+  document.getElementById('sn-cbat-plus').addEventListener('click', () => {
+    const field  = document.getElementById('sn-cbat');
+    const digits = field.value.replace(/\D/g, '');
+    const num    = Math.min(parseInt(digits, 10) || 0, 99998);
+    const newStr = String(num + 1).padStart(Math.max(digits.length || 5, String(num + 1).length), '0').slice(-5);
+    field.value  = newStr;
+    saveConfig();
+  });
+
+  document.getElementById('sn-cbat-minus').addEventListener('click', () => {
+    const field  = document.getElementById('sn-cbat');
+    const digits = field.value.replace(/\D/g, '');
+    const num    = parseInt(digits, 10) || 0;
+    if (num <= 0) return;
+    const newStr = String(num - 1).padStart(Math.max(digits.length || 5, String(num - 1).length), '0').slice(-5);
+    field.value  = newStr;
+    saveConfig();
+  });
+
   // ─── Telefono ────────────────────────────────────────────────────────────
   document.getElementById('phone-btn').addEventListener('click', handlePhoneClick);
   document.getElementById('phone-edit-btn').addEventListener('click', openPhoneModal);
@@ -1856,6 +2107,9 @@ function setupListeners() {
     // Mostra/nascondi le matite dei pulsanti extra-bar
     document.getElementById('counter-edit-btn').classList.toggle('hidden', !editMode);
     document.getElementById('phone-edit-btn').classList.toggle('hidden', !editMode);
+    for (let ci = 0; ci < INFO_COLS; ci++) {
+      document.getElementById(`info-edit-btn-${ci}`).classList.toggle('hidden', !editMode);
+    }
     renderButtons();
   });
 
