@@ -57,6 +57,7 @@ let counterValue = 0;
 
 // ─── STATO TELEFONO ──────────────────────────────────────────────────────────
 let phoneCfg = { title:'TEL', command:'', color:'#5f3a1e' };
+let battProgCfg = { title:'Batt. Prog.', command:'battery program 1 {AAMMSNBAT}/1/41600', color:'#7a3a00' };
 
 // ─── TASTI FUNZIONE F1–F12 ───────────────────────────────────────────────────
 // Ogni slot: { label, command, portTarget, autoSend, enabled }
@@ -79,7 +80,6 @@ let mdmBuffer       = '';      // accumula testo ricevuto durante l'interrogazio
 let mdmPortNum      = 1;       // porta su cui è stato inviato il comando
 let mdmTabId        = null;    // scheda su cui è stato inviato il comando
 let mdmTimeout      = null;    // timer di timeout
-let mdmParseScheduled = false; // true se è già programmato un parse ritardato
 
 // ─── STATO INFO PANEL ────────────────────────────────────────────────────────
 const INFO_COLS = 2;
@@ -198,6 +198,7 @@ async function init() {
       if (saved.counterCfg) counterCfg = saved.counterCfg;
       if (saved.counterValue !== undefined) counterValue = saved.counterValue;
       if (saved.phoneCfg) phoneCfg = saved.phoneCfg;
+      if (saved.battProgCfg) battProgCfg = saved.battProgCfg;
       if (saved.fkeyCfg && Array.isArray(saved.fkeyCfg)) {
         saved.fkeyCfg.forEach((k, i) => { if (fkeyCfg[i]) fkeyCfg[i] = { ...fkeyCfg[i], ...k }; });
       }
@@ -252,6 +253,7 @@ async function init() {
   startPortPolling();
   applyCounterCfg();
   applyPhoneCfg();
+  applyBattProgCfg();
   applyInfoPanelCfg();
   applyColorSettings();
   syncCounterFields();
@@ -901,11 +903,10 @@ async function handleMdmClick() {
   document.getElementById('mdm-fw').value   = '';
 
   // Avvia la modalità ascolto
-  mdmListening      = true;
-  mdmBuffer         = '';
-  mdmPortNum        = pn;
-  mdmTabId          = tabId;
-  mdmParseScheduled = false;
+  mdmListening = true;
+  mdmBuffer    = '';
+  mdmPortNum   = pn;
+  mdmTabId     = tabId;
 
   // Timeout di sicurezza: dopo 5 secondi smette di ascoltare
   if (mdmTimeout) clearTimeout(mdmTimeout);
@@ -923,25 +924,22 @@ async function handleMdmClick() {
 
 // Analizza il buffer accumulato ed estrae IMEI e versione FW
 function parseMdmBuffer(text) {
-  // Rimuove sequenze ANSI escape, CR e caratteri non stampabili
-  const clean = text
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
-    .replace(/\r/g, '\n')
-    .replace(/[^\x20-\x7E\n]/g, '');
+  // Rimuove sequenze ANSI escape e caratteri di controllo non utili
+  const clean = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
   const lines = clean.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   let imei = '';
   let fw   = '';
 
   for (const line of lines) {
-    // Cerca IMEI dopo "imei:" (case-insensitive) — prende solo cifre dopo la label
+    // Cerca IMEI dopo "imei:" (case-insensitive)
     if (!imei) {
-      const mImei = line.match(/imei\s*:\s*([\d\s]+)/i);
+      const mImei = line.match(/imei\s*:\s*(.+)/i);
       if (mImei) {
-        imei = mImei[1].replace(/\s/g, '').trim();
+        imei = mImei[1].trim();
       }
     }
-    // Cerca versione FW
+    // Cerca versione FW dopo "ver(QGMR):", "revisione fw:" oppure "Revision:" (case-insensitive)
     if (!fw) {
       const mFw = line.match(/(?:ver\(QGMR\)|revisione\s+fw|Revision)\s*:\s*(.+)/i);
       if (mFw) {
@@ -950,12 +948,11 @@ function parseMdmBuffer(text) {
     }
   }
 
-  // Fallback: cerca IMEI come sequenza di esattamente 15 cifre su una riga
+  // Se non trovato con etichetta, prova a riconoscere l'IMEI come sequenza di 15 cifre
   if (!imei) {
     for (const line of lines) {
-      const m = line.match(/\b(\d{15})\b/);
-      if (m) {
-        imei = m[1];
+      if (/^\d{15}$/.test(line)) {
+        imei = line;
         break;
       }
     }
@@ -1090,24 +1087,14 @@ function setupPortEvents() {
     // Accumula nel buffer MDM se stiamo aspettando la risposta
     if (mdmListening && tabId === mdmTabId && portNum === mdmPortNum) {
       mdmBuffer += text;
-      // Controlla se abbiamo già entrambi i valori per terminare prima del timeout.
-      // Aspetta 300ms dopo aver rilevato le keyword: i dati seriali arrivano a chunk
-      // e il valore può trovarsi nel chunk successivo rispetto alla keyword.
+      // Controlla se abbiamo già entrambi i valori per terminare prima del timeout
       const cleanBuf = mdmBuffer.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
-      const hasImei = /imei\s*:/i.test(cleanBuf) || /\b\d{15}\b/.test(cleanBuf);
+      const hasImei = /imei\s*:/i.test(cleanBuf) || /^\d{15}$/m.test(cleanBuf);
       const hasFw   = /(?:ver\(QGMR\)|revisione\s+fw|Revision)\s*:/i.test(cleanBuf);
       if (hasImei && hasFw) {
-        if (!mdmParseScheduled) {
-          mdmParseScheduled = true;
-          setTimeout(() => {
-            if (mdmListening) {
-              mdmListening = false;
-              if (mdmTimeout) { clearTimeout(mdmTimeout); mdmTimeout = null; }
-              parseMdmBuffer(mdmBuffer);
-            }
-            mdmParseScheduled = false;
-          }, 300);
-        }
+        mdmListening = false;
+        if (mdmTimeout) { clearTimeout(mdmTimeout); mdmTimeout = null; }
+        parseMdmBuffer(mdmBuffer);
       }
     }
 
@@ -1270,6 +1257,7 @@ async function saveConfig() {
     counterCfg,
     counterValue,
     phoneCfg,
+    battProgCfg,
     fkeyCfg,
     infoPanelCfg,
   };
@@ -1825,6 +1813,14 @@ function parseCounterInput(val) {
 
 // ═══════════════════════ BATTERY PROGRAM ═════════════════════════════════════
 
+function applyBattProgCfg() {
+  const btn = document.getElementById('batt-prog-btn');
+  btn.textContent = battProgCfg.title || 'Batt. Prog.';
+  btn.style.backgroundColor = battProgCfg.color || '#7a3a00';
+  btn.style.color = '#fff';
+  btn.style.borderColor = 'transparent';
+}
+
 async function handleBattProgClick() {
   const snCbat = document.getElementById('sn-cbat').value.trim();
   if (!/^\d{5}$/.test(snCbat)) {
@@ -1833,14 +1829,41 @@ async function handleBattProgClick() {
     return;
   }
   const now = new Date();
-  const aa  = String(now.getFullYear()).slice(-2);          // ultime 2 cifre anno
-  const mm  = String(now.getMonth() + 1).padStart(2, '0'); // mese 01-12
-  const cmd = `battery program 1 ${aa}${mm}${snCbat}/1/41600`;
+  const aa  = String(now.getFullYear()).slice(-2);
+  const mm  = String(now.getMonth() + 1).padStart(2, '0');
+
+  // Sostituisce i placeholder nel template
+  const template = (battProgCfg.command || 'battery program 1 {AAMMSNBAT}/1/41600');
+  const cmd = template
+    .replace(/\{AAMMSNBAT\}/g, `${aa}${mm}${snCbat}`)
+    .replace(/\{SNBAT\}/g, snCbat)
+    .replace(/\{AA\}/g, aa)
+    .replace(/\{MM\}/g, mm);
+
   const le  = lineEnding();
   const full = cmd + le;
   await writeTarget(full, 'active');
   logLine(full);
   focusActiveTerminal();
+}
+
+function openBattProgModal() {
+  document.getElementById('bp-title').value = battProgCfg.title || '';
+  document.getElementById('bp-cmd').value   = battProgCfg.command || '';
+  document.getElementById('bp-color').value = battProgCfg.color  || '#7a3a00';
+  document.getElementById('batt-prog-overlay').classList.remove('hidden');
+  document.getElementById('bp-title').focus();
+}
+function closeBattProgModal() {
+  document.getElementById('batt-prog-overlay').classList.add('hidden');
+}
+function saveBattProgModal() {
+  battProgCfg.title   = document.getElementById('bp-title').value.trim() || 'Batt. Prog.';
+  battProgCfg.command = document.getElementById('bp-cmd').value;
+  battProgCfg.color   = document.getElementById('bp-color').value;
+  applyBattProgCfg();
+  closeBattProgModal();
+  saveConfig();
 }
 
 // ═══════════════════════ TELEFONO ════════════════════════════════════════════
@@ -2058,6 +2081,13 @@ function setupListeners() {
 
   // ─── Battery Program ─────────────────────────────────────────────────────
   document.getElementById('batt-prog-btn').addEventListener('click', handleBattProgClick);
+  document.getElementById('batt-prog-edit-btn').addEventListener('click', openBattProgModal);
+  document.getElementById('bp-modal-x').addEventListener('click', closeBattProgModal);
+  document.getElementById('bp-cancel').addEventListener('click', closeBattProgModal);
+  document.getElementById('bp-save').addEventListener('click', saveBattProgModal);
+  document.getElementById('batt-prog-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('batt-prog-overlay')) closeBattProgModal();
+  });
 
   document.getElementById('sn-cbat-plus').addEventListener('click', () => {
     const field  = document.getElementById('sn-cbat');
@@ -2123,6 +2153,7 @@ function setupListeners() {
     // Mostra/nascondi le matite dei pulsanti extra-bar
     document.getElementById('counter-edit-btn').classList.toggle('hidden', !editMode);
     document.getElementById('phone-edit-btn').classList.toggle('hidden', !editMode);
+    document.getElementById('batt-prog-edit-btn').classList.toggle('hidden', !editMode);
     for (let ci = 0; ci < INFO_COLS; ci++) {
       document.getElementById(`info-edit-btn-${ci}`).classList.toggle('hidden', !editMode);
     }

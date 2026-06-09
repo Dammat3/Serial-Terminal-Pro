@@ -21,7 +21,6 @@
     <button id="mdm-btn" class="counter-cfg-btn mdm-cfg-btn" title="Interroga modem: legge IMEI e versione FW">Mdm</button>
     <input id="mdm-imei" class="mdm-tabbar-input" type="text" maxlength="20" value="" placeholder="IMEI" title="IMEI del modem" readonly>
     <input id="mdm-fw"   class="mdm-tabbar-input mdm-fw-input" type="text" maxlength="60" value="" placeholder="FW ver." title="Versione firmware modem" readonly>
-    <button id="mdm-clear-btn" class="icon-btn mdm-clear-btn" title="Svuota IMEI e FW ver.">✕</button>
   </div>
   <!-- Toggle dark/light mode -->
   <button id="theme-toggle" class="icon-btn theme-toggle-btn" title="Modalità chiara/scura">🌙</button>
@@ -115,7 +114,7 @@
         <div class="info-col-hdr">
           <button class="counter-cfg-btn info-btn" id="info-btn-0" title="Invia comando · Modifica: tasto ✎">INFO 1</button>
           <button class="icon-btn counter-edit-icon info-edit-btn hidden" id="info-edit-btn-0" title="Configura colonna 1">✎</button>
-
+          <button class="info-collapse-btn" id="info-collapse-0" title="Mostra/nascondi campi" aria-expanded="true">▾</button>
         </div>
         <div class="info-fields" id="info-fields-0">
           <div class="info-row"><span class="info-lbl" id="info-lbl-0-0">Campo 1</span><input class="info-val" id="info-val-0-0" type="text" readonly></div>
@@ -257,6 +256,7 @@
   <button id="sn-cbat-minus" class="counter-pm-btn" title="Decrementa (−1)">−</button>
   <button id="sn-cbat-plus"  class="counter-pm-btn" title="Incrementa (+1)">+</button>
   <button id="batt-prog-btn" class="counter-cfg-btn batt-prog-btn" title="Invia comando Battery Program">Batt. Prog.</button>
+  <button id="batt-prog-edit-btn" class="icon-btn counter-edit-icon hidden" title="Configura comando Battery Program">✎</button>
 </div>
 
 <!-- ══════════════════════ BARRA INFERIORE ════════════════════════ -->
@@ -406,6 +406,39 @@
   </div>
 </div>
 
+<!-- ══════════════════════ MODAL BATT. PROG. ═════════════════════ -->
+<div id="batt-prog-overlay" class="hidden">
+  <div id="batt-prog-modal">
+    <div id="modal-hdr">
+      <h2>Configura Battery Program</h2>
+      <button id="bp-modal-x">✕</button>
+    </div>
+    <div class="fg">
+      <label>Titolo pulsante</label>
+      <input id="bp-title" type="text" placeholder="es. Batt. Prog." maxlength="12">
+    </div>
+    <div class="fg">
+      <label>Template comando</label>
+      <input id="bp-cmd" type="text" placeholder="es. battery program 1 {AAMMSNBAT}/1/41600">
+      <p class="hint">
+        Usa <code>{SNBAT}</code> per il valore del campo SN CBAT,
+        <code>{AAMMSNBAT}</code> per anno+mese+SN CBAT (formato <strong>aammSNBAT</strong>),
+        <code>{AA}</code> per le ultime 2 cifre dell'anno,
+        <code>{MM}</code> per il mese (01–12).
+      </p>
+    </div>
+    <div class="fg">
+      <label>Colore</label>
+      <input id="bp-color" type="color" value="#7a3a00">
+    </div>
+    <div class="modal-actions">
+      <span style="flex:1"></span>
+      <button id="bp-cancel" class="btn-sec">Annulla</button>
+      <button id="bp-save"   class="btn-pri">💾 Salva</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════ MODAL EDITOR ══════════════════════════ -->
 <div id="overlay" class="hidden">
   <div id="modal">
@@ -491,71 +524,59 @@
 </div>
 
 <script>
-// ── Info panel collapse (freccia col-1 controlla entrambe) ───────
+// ── Info panel collapse ──────────────────────────────────────────
 (function(){
   function initInfoCollapse(){
-    var btn     = document.getElementById('info-collapse-1');
-    var fields0 = document.getElementById('info-fields-0');
-    var fields1 = document.getElementById('info-fields-1');
-    var sep     = document.querySelector('.info-panel-sep');
-    if(!btn || !fields0 || !fields1) return;
+    [0,1].forEach(function(i){
+      var btn    = document.getElementById('info-collapse-'+i);
+      var fields = document.getElementById('info-fields-'+i);
+      if(!btn || !fields) return;
 
-    // Usa max-height: molto più affidabile di height per le transizioni
-    [fields0, fields1].forEach(function(el){
-      el.style.overflow = 'hidden';
-      el.style.transition = 'max-height 0.25s ease';
-    });
-
-    function setCollapsed(collapsed, animate){
-      if(!animate){
-        [fields0, fields1].forEach(function(el){
-          el.style.transition = 'none';
-          el.style.maxHeight = collapsed ? '0px' : '500px';
-        });
-        // Riabilita transizione al prossimo frame
-        requestAnimationFrame(function(){
-          [fields0, fields1].forEach(function(el){
-            el.style.transition = 'max-height 0.25s ease';
-          });
-        });
-      } else {
-        [fields0, fields1].forEach(function(el){
-          el.style.maxHeight = collapsed ? '0px' : '500px';
-        });
+      // Ripristina stato salvato
+      var saved = localStorage.getItem('info-col-'+i+'-collapsed');
+      if(saved === '1'){
+        fields.style.height = '0';
+        fields.style.overflow = 'hidden';
+        btn.textContent = '▸';
+        btn.setAttribute('aria-expanded','false');
       }
-      if(sep) sep.style.display = collapsed ? 'none' : '';
-      btn.textContent = collapsed ? '\u25b8' : '\u25be';
-      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-      localStorage.setItem('info-panel-collapsed', collapsed ? '1' : '0');
-    }
 
-    // Ripristina stato salvato
-    var saved = localStorage.getItem('info-panel-collapsed') === '1';
-    setCollapsed(saved, false);
-
-    btn.addEventListener('click', function(e){
-      e.stopPropagation();
-      setCollapsed(btn.getAttribute('aria-expanded') !== 'false', true);
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var collapsed = btn.getAttribute('aria-expanded') === 'false';
+        if(collapsed){
+          // Espandi
+          fields.style.height = fields.scrollHeight + 'px';
+          btn.textContent = '▾';
+          btn.setAttribute('aria-expanded','true');
+          localStorage.setItem('info-col-'+i+'-collapsed','0');
+          // Rimuovi height fissa dopo transizione per non bloccare resize
+          fields.addEventListener('transitionend', function onEnd(){
+            fields.style.height = '';
+            fields.style.overflow = '';
+            fields.removeEventListener('transitionend', onEnd);
+          });
+        } else {
+          // Collassa: imposta altezza corrente → poi 0
+          fields.style.height = fields.scrollHeight + 'px';
+          fields.style.overflow = 'hidden';
+          requestAnimationFrame(function(){
+            requestAnimationFrame(function(){
+              fields.style.height = '0';
+            });
+          });
+          btn.textContent = '▸';
+          btn.setAttribute('aria-expanded','false');
+          localStorage.setItem('info-col-'+i+'-collapsed','1');
+        }
+      });
     });
   }
-
-  // ── MDM clear button ─────────────────────────────────────────────
-  function initMdmClear(){
-    var clearBtn = document.getElementById('mdm-clear-btn');
-    if(!clearBtn) return;
-    clearBtn.addEventListener('click', function(){
-      var imei = document.getElementById('mdm-imei');
-      var fw   = document.getElementById('mdm-fw');
-      if(imei) imei.value = '';
-      if(fw)   fw.value   = '';
-    });
-  }
-
+  // Avvia dopo che il DOM è pronto
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ initInfoCollapse(); initMdmClear(); });
+    document.addEventListener('DOMContentLoaded', initInfoCollapse);
   } else {
     initInfoCollapse();
-    initMdmClear();
   }
 })();
 </script>

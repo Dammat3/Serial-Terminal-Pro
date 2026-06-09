@@ -498,12 +498,6 @@ input,textarea,select{cursor:default!important}
 }
 .mdm-tabbar-input::placeholder{color:var(--txt2)}
 
-.mdm-clear-btn{
-  height:22px; padding:0 7px; font-size:11px;
-  color:var(--txt2); flex-shrink:0;
-}
-.mdm-clear-btn:hover{color:var(--err);border-color:var(--err);background:rgba(248,81,73,.1)}
-
 .counter-edit-icon{
   height:22px; padding:0 5px; font-size:11px; flex-shrink:0;
 }
@@ -591,16 +585,18 @@ input,textarea,select{cursor:default!important}
 
 /* ═══ MODAL GENERICO ═════════════════════════════════════════════ */
 #counter-overlay,
-#phone-overlay{
+#phone-overlay,
+#batt-prog-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.78);
   display:flex;align-items:center;justify-content:center;
   z-index:200;backdrop-filter:blur(3px);
 }
 #counter-modal,
-#phone-modal{
+#phone-modal,
+#batt-prog-modal{
   background:var(--bg1);border:1px solid var(--bord);
   border-radius:10px;padding:22px 24px;
-  width:380px;max-width:94vw;
+  width:420px;max-width:94vw;
   box-shadow:0 24px 64px var(--shadow);
 }
 
@@ -622,10 +618,12 @@ input,textarea,select{cursor:default!important}
 #modal-hdr h2{font-size:15px;font-weight:600}
 #modal-x,
 #counter-modal-x,
-#phone-modal-x{background:none;border:none;color:var(--txt2);font-size:16px;cursor:pointer;transition:color .15s}
+#phone-modal-x,
+#bp-modal-x{background:none;border:none;color:var(--txt2);font-size:16px;cursor:pointer;transition:color .15s}
 #modal-x:hover,
 #counter-modal-x:hover,
-#phone-modal-x:hover{color:var(--err)}
+#phone-modal-x:hover,
+#bp-modal-x:hover{color:var(--err)}
 
 .fg{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
 .fg-row{display:flex;gap:12px;margin-bottom:14px}
@@ -736,6 +734,12 @@ input,textarea,select{cursor:default!important}
   border-radius:3px;
 }
 .info-collapse-btn:hover{color:var(--acc);background:rgba(88,166,255,.1)}
+
+.info-fields{
+  transition:height .22s ease, opacity .22s ease;
+  overflow:hidden;
+}
+.info-fields[style*="height: 0"]{opacity:.3}
 
 #datetime-display{
   background:var(--bg0); border:1px solid var(--bord);
