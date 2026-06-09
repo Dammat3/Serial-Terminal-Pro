@@ -80,6 +80,7 @@ let mdmBuffer       = '';      // accumula testo ricevuto durante l'interrogazio
 let mdmPortNum      = 1;       // porta su cui è stato inviato il comando
 let mdmTabId        = null;    // scheda su cui è stato inviato il comando
 let mdmTimeout      = null;    // timer di timeout
+let mdmParseScheduled = false; // true se è già programmato un parse ritardato
 
 // ─── STATO INFO PANEL ────────────────────────────────────────────────────────
 const INFO_COLS = 2;
@@ -903,10 +904,11 @@ async function handleMdmClick() {
   document.getElementById('mdm-fw').value   = '';
 
   // Avvia la modalità ascolto
-  mdmListening = true;
-  mdmBuffer    = '';
-  mdmPortNum   = pn;
-  mdmTabId     = tabId;
+  mdmListening      = true;
+  mdmBuffer         = '';
+  mdmPortNum        = pn;
+  mdmTabId          = tabId;
+  mdmParseScheduled = false;
 
   // Timeout di sicurezza: dopo 5 secondi smette di ascoltare
   if (mdmTimeout) clearTimeout(mdmTimeout);
@@ -924,22 +926,25 @@ async function handleMdmClick() {
 
 // Analizza il buffer accumulato ed estrae IMEI e versione FW
 function parseMdmBuffer(text) {
-  // Rimuove sequenze ANSI escape e caratteri di controllo non utili
-  const clean = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
+  // Rimuove sequenze ANSI escape, CR e caratteri non stampabili
+  const clean = text
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+    .replace(/\r/g, '\n')
+    .replace(/[^\x20-\x7E\n]/g, '');
   const lines = clean.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   let imei = '';
   let fw   = '';
 
   for (const line of lines) {
-    // Cerca IMEI dopo "imei:" (case-insensitive)
+    // Cerca IMEI dopo "imei:" (case-insensitive) — prende solo cifre dopo la label
     if (!imei) {
-      const mImei = line.match(/imei\s*:\s*(.+)/i);
+      const mImei = line.match(/imei\s*:\s*([\d\s]+)/i);
       if (mImei) {
-        imei = mImei[1].trim();
+        imei = mImei[1].replace(/\s/g, '').trim();
       }
     }
-    // Cerca versione FW dopo "ver(QGMR):", "revisione fw:" oppure "Revision:" (case-insensitive)
+    // Cerca versione FW
     if (!fw) {
       const mFw = line.match(/(?:ver\(QGMR\)|revisione\s+fw|Revision)\s*:\s*(.+)/i);
       if (mFw) {
@@ -948,11 +953,12 @@ function parseMdmBuffer(text) {
     }
   }
 
-  // Se non trovato con etichetta, prova a riconoscere l'IMEI come sequenza di 15 cifre
+  // Fallback: cerca IMEI come sequenza di esattamente 15 cifre su una riga
   if (!imei) {
     for (const line of lines) {
-      if (/^\d{15}$/.test(line)) {
-        imei = line;
+      const m = line.match(/\b(\d{15})\b/);
+      if (m) {
+        imei = m[1];
         break;
       }
     }
@@ -1087,14 +1093,24 @@ function setupPortEvents() {
     // Accumula nel buffer MDM se stiamo aspettando la risposta
     if (mdmListening && tabId === mdmTabId && portNum === mdmPortNum) {
       mdmBuffer += text;
-      // Controlla se abbiamo già entrambi i valori per terminare prima del timeout
+      // Controlla se abbiamo già entrambi i valori per terminare prima del timeout.
+      // Aspetta 300ms dopo aver rilevato le keyword: i dati seriali arrivano a chunk
+      // e il valore può trovarsi nel chunk successivo rispetto alla keyword.
       const cleanBuf = mdmBuffer.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
-      const hasImei = /imei\s*:/i.test(cleanBuf) || /^\d{15}$/m.test(cleanBuf);
+      const hasImei = /imei\s*:/i.test(cleanBuf) || /\b\d{15}\b/.test(cleanBuf);
       const hasFw   = /(?:ver\(QGMR\)|revisione\s+fw|Revision)\s*:/i.test(cleanBuf);
       if (hasImei && hasFw) {
-        mdmListening = false;
-        if (mdmTimeout) { clearTimeout(mdmTimeout); mdmTimeout = null; }
-        parseMdmBuffer(mdmBuffer);
+        if (!mdmParseScheduled) {
+          mdmParseScheduled = true;
+          setTimeout(() => {
+            if (mdmListening) {
+              mdmListening = false;
+              if (mdmTimeout) { clearTimeout(mdmTimeout); mdmTimeout = null; }
+              parseMdmBuffer(mdmBuffer);
+            }
+            mdmParseScheduled = false;
+          }, 300);
+        }
       }
     }
 
@@ -1831,15 +1847,12 @@ async function handleBattProgClick() {
   const now = new Date();
   const aa  = String(now.getFullYear()).slice(-2);
   const mm  = String(now.getMonth() + 1).padStart(2, '0');
-
-  // Sostituisce i placeholder nel template
-  const template = (battProgCfg.command || 'battery program 1 {AAMMSNBAT}/1/41600');
+  const template = battProgCfg.command || 'battery program 1 {AAMMSNBAT}/1/41600';
   const cmd = template
     .replace(/\{AAMMSNBAT\}/g, `${aa}${mm}${snCbat}`)
-    .replace(/\{SNBAT\}/g, snCbat)
-    .replace(/\{AA\}/g, aa)
-    .replace(/\{MM\}/g, mm);
-
+    .replace(/\{SNBAT\}/g,     snCbat)
+    .replace(/\{AA\}/g,        aa)
+    .replace(/\{MM\}/g,        mm);
   const le  = lineEnding();
   const full = cmd + le;
   await writeTarget(full, 'active');
@@ -1848,9 +1861,9 @@ async function handleBattProgClick() {
 }
 
 function openBattProgModal() {
-  document.getElementById('bp-title').value = battProgCfg.title || '';
+  document.getElementById('bp-title').value = battProgCfg.title   || '';
   document.getElementById('bp-cmd').value   = battProgCfg.command || '';
-  document.getElementById('bp-color').value = battProgCfg.color  || '#7a3a00';
+  document.getElementById('bp-color').value = battProgCfg.color   || '#7a3a00';
   document.getElementById('batt-prog-overlay').classList.remove('hidden');
   document.getElementById('bp-title').focus();
 }
