@@ -102,6 +102,8 @@ let infoBuffer     = ['', ''];
 let infoPortNum    = [1, 1];
 let infoTabId      = [null, null];
 let infoTimeout    = [null, null];
+let infoRegexes    = [null, null];   // regex precompilate al momento del click
+let infoFound      = [[], []];       // quali campi sono già stati trovati
 let editInfoColIdx = 0;
 
 // ─── IMPOSTAZIONI COLORI PULSANTI ─────────────────────────────────────────────
@@ -1006,6 +1008,14 @@ async function handleInfoBtnClick(ci) {
     document.getElementById(`info-val-${ci}-${ri}`).value = '';
   }
 
+  // Precompila le regex una sola volta (non ad ogni chunk)
+  infoRegexes[ci] = col.fields.map(f => {
+    if (!f?.search?.trim()) return null;
+    const esc = f.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(esc + '\\s*:?\\s*(.+)', 'i');
+  });
+  infoFound[ci] = Array(INFO_ROWS).fill(false);
+
   // Avvia ascolto
   infoListening[ci] = true;
   infoBuffer[ci]    = '';
@@ -1013,12 +1023,11 @@ async function handleInfoBtnClick(ci) {
   infoTabId[ci]     = tabId;
 
   if (infoTimeout[ci]) clearTimeout(infoTimeout[ci]);
+  // Timeout di sicurezza: 3s (i campi vengono comunque popolati in tempo reale)
   infoTimeout[ci] = setTimeout(() => {
-    if (infoListening[ci]) {
-      infoListening[ci] = false;
-      parseInfoBuffer(ci, infoBuffer[ci]);
-    }
-  }, 5000);
+    infoListening[ci] = false;
+    infoTimeout[ci]   = null;
+  }, 3000);
 
   const le = lineEnding();
   await writePort(tabId, pn, cmd + le);
@@ -1116,22 +1125,44 @@ function setupPortEvents() {
       }
     }
 
-    // Accumula nei buffer INFO PANEL
+    // ── INFO PANEL: parsing incrementale per campo ────────────────────────
     for (let ci = 0; ci < INFO_COLS; ci++) {
-      if (infoListening[ci] && tabId === infoTabId[ci] && portNum === infoPortNum[ci]) {
-        infoBuffer[ci] += text;
-        const cleanBuf = infoBuffer[ci].replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '\n');
-        // Termina anticipatamente se tutte le stringhe configurate sono trovate
-        const allFound = infoPanelCfg[ci].fields.every(f => {
-          if (!f.search?.trim()) return true;
-          const esc = f.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          return new RegExp(esc + '\\s*:?\\s*', 'i').test(cleanBuf);
-        });
-        if (allFound) {
-          infoListening[ci] = false;
-          if (infoTimeout[ci]) { clearTimeout(infoTimeout[ci]); infoTimeout[ci] = null; }
-          parseInfoBuffer(ci, infoBuffer[ci]);
+      if (!infoListening[ci] || tabId !== infoTabId[ci] || portNum !== infoPortNum[ci]) continue;
+
+      infoBuffer[ci] += text;
+
+      // Pulisce ANSI e normalizza a righe — lavora sul buffer completo
+      // per gestire match che arrivano su chunk separati
+      const clean = infoBuffer[ci]
+        .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+        .replace(/\r/g, '\n');
+      const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+
+      let stillPending = false;
+
+      for (let ri = 0; ri < INFO_ROWS; ri++) {
+        if (infoFound[ci][ri]) continue;           // già trovato: salta
+        const re = infoRegexes[ci]?.[ri];
+        if (!re) continue;                          // nessuna stringa configurata: salta
+
+        stillPending = true;                        // c'è ancora almeno un campo atteso
+
+        for (const line of lines) {
+          const m = line.match(re);
+          if (m) {
+            // Aggiorna il campo immediatamente
+            document.getElementById(`info-val-${ci}-${ri}`).value = m[1].trim();
+            infoFound[ci][ri] = true;
+            stillPending = false;
+            break;
+          }
         }
+      }
+
+      // Se tutti i campi configurati sono stati trovati, smette subito
+      if (!stillPending) {
+        infoListening[ci] = false;
+        if (infoTimeout[ci]) { clearTimeout(infoTimeout[ci]); infoTimeout[ci] = null; }
       }
     }
   });

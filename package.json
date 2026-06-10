@@ -1,6 +1,6 @@
 {
   "name": "serial-terminal-pro",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "author": "Drai",
   "description": "Terminale seriale con pulsanti programmabili, multi-porta e timestamp UTC",
   "main": "main.js",
