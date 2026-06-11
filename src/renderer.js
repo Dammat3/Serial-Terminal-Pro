@@ -153,8 +153,9 @@ const utcCompact = () => {
   return `${p(d.getUTCDate())}${p(d.getUTCMonth()+1)}${yy} ${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`;
 };
 const interp = cmd => cmd
-  .replace(/\{UTC\}/gi,     utcNow())
-  .replace(/\{UTCSHORT\}/gi, utcCompact());
+  .replace(/\{UTC\}/gi,          utcNow())
+  .replace(/\{UTCSHORT\}/gi,     utcCompact())
+  .replace(/\{SN[\s_-]?GEN\}/gi, () => document.getElementById('sn-gen')?.value.trim() ?? '');
 const activeTab = ()  => cfg.tabs.find(t => t.id === activeTabId);
 const lineEnding = () => {
   const v = document.getElementById('line-end').value;
@@ -201,6 +202,10 @@ async function init() {
       // Ripristina contatore
       if (saved.counterCfg) counterCfg = saved.counterCfg;
       if (saved.counterValue !== undefined) counterValue = saved.counterValue;
+      if (saved.snGenValue !== undefined) {
+        const el = document.getElementById('sn-gen');
+        if (el) el.value = saved.snGenValue;
+      }
       if (saved.phoneCfg) phoneCfg = saved.phoneCfg;
       if (saved.battProgCfg) battProgCfg = saved.battProgCfg;
       if (saved.fkeyCfg && Array.isArray(saved.fkeyCfg)) {
@@ -1305,6 +1310,7 @@ async function saveConfig() {
     darkMode,
     counterCfg,
     counterValue,
+    snGenValue: document.getElementById('sn-gen')?.value ?? '',
     phoneCfg,
     battProgCfg,
     fkeyCfg,
@@ -2155,6 +2161,28 @@ function setupListeners() {
     if (num <= 0) return;
     const newStr = String(num - 1).padStart(Math.max(digits.length || 5, String(num - 1).length), '0').slice(-5);
     field.value  = newStr;
+    saveConfig();
+  });
+
+  // ─── SN Generico ─────────────────────────────────────────────────────────
+  document.getElementById('sn-gen').addEventListener('input', () => saveConfig());
+
+  document.getElementById('sn-gen-plus').addEventListener('click', () => {
+    const field  = document.getElementById('sn-gen');
+    const digits = field.value.replace(/\D/g, '');
+    const len    = digits.length || 1;
+    const num    = parseInt(digits, 10) || 0;
+    field.value  = String(num + 1).padStart(len, '0').slice(-field.maxLength);
+    saveConfig();
+  });
+
+  document.getElementById('sn-gen-minus').addEventListener('click', () => {
+    const field  = document.getElementById('sn-gen');
+    const digits = field.value.replace(/\D/g, '');
+    const num    = parseInt(digits, 10) || 0;
+    if (num <= 0) return;
+    const len    = digits.length || 1;
+    field.value  = String(num - 1).padStart(len, '0').slice(-field.maxLength);
     saveConfig();
   });
 
