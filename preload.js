@@ -25,6 +25,10 @@ contextBridge.exposeInMainWorld('serialAPI', {
   onOpenFkeyModal: (cb) => ipcRenderer.on('open-fkey-modal', ()    => cb()),
   onToggleFkeyBar: (cb) => ipcRenderer.on('toggle-fkey-bar', (_, v) => cb(v)),
   onReopenLastTab: (cb) => ipcRenderer.on('reopen-last-tab', ()    => cb()),
+  exportTab:          (args) => ipcRenderer.invoke('export-tab', args),
+  exportAllTabs:      (args) => ipcRenderer.invoke('export-all-tabs', args),
+  onExportTabRequest:    (cb) => ipcRenderer.on('export-tab-request',      ()    => cb()),
+  onExportAllTabsRequest:(cb) => ipcRenderer.on('export-all-tabs-request', ()    => cb()),
   // ── Auto-update ──────────────────────────────────────────────────────────
   onUpdateChecking:  (cb) => ipcRenderer.on('update-checking',     ()    => cb()),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available',    (_, v) => cb(v)),
@@ -36,6 +40,7 @@ contextBridge.exposeInMainWorld('serialAPI', {
   removeListeners: () => {
     ['port-data','port-closed','port-error','apply-config','open-fkey-modal',
      'toggle-fkey-bar','reopen-last-tab',
+     'export-tab-request','export-all-tabs-request',
      'update-checking','update-available','update-not-available','update-progress','update-downloaded',
     ].forEach(ch => ipcRenderer.removeAllListeners(ch));
   },

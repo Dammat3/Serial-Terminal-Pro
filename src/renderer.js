@@ -1324,26 +1324,56 @@ async function saveConfig() {
 // autoSend OFF → [cmd][spazio?][cmdbar] messo nella barra (l'utente completa)
 
 async function handleButtonClick(btn) {
-  const cmd    = interp(btn.command || '');
   const target = btn.portTarget || 'active';
   const le     = lineEnding();
   const input  = document.getElementById('user-input');
   const cmdbar = input.value;
 
+  // ── Sequenza comandi (nuovo) ──────────────────────────────────────────────
+  // btn.commands = [{ cmd, delay }, ...] oppure retrocompat btn.command string
+  const steps = _resolveButtonCommands(btn);
+
   if (btn.autoSend !== false) {
-    // Aggiunge uno spazio tra il comando del pulsante e il testo della barra
-    const sp = (cmd && cmdbar) ? ' ' : '';
-    await writeTarget(cmd + sp + cmdbar + le, target);
+    for (let i = 0; i < steps.length; i++) {
+      const { cmd, delay } = steps[i];
+      const resolved = interp(cmd);
+      // Il testo della barra comandi viene accodato solo all'ultimo step
+      const isLast = i === steps.length - 1;
+      const sp = (resolved && cmdbar && isLast) ? ' ' : '';
+      const payload = resolved + (isLast ? sp + cmdbar : '') + le;
+      await writeTarget(payload, target);
+      if (delay > 0 && i < steps.length - 1) {
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
   } else {
+    // autoSend OFF: mette solo il primo comando nella barra
+    const first = interp(steps[0]?.cmd || '');
     const sp = btn.addSpace ? ' ' : '';
-    input.value = cmd + sp + cmdbar;
+    input.value = first + sp + cmdbar;
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
-    return; // non focalizzare il terminale se stiamo editando la barra
+    return;
   }
-  // Riporta il focus al terminale attivo
   focusActiveTerminal();
 }
+
+/**
+ * Normalizza le definizioni di comando supportando sia il vecchio formato
+ * (btn.command: string) sia il nuovo (btn.commands: [{cmd, delay}]).
+ * Restituisce sempre un array [{cmd, delay}] con almeno un elemento.
+ */
+function _resolveButtonCommands(btn) {
+  if (Array.isArray(btn.commands) && btn.commands.length > 0) {
+    return btn.commands.map(s => ({
+      cmd:   typeof s === 'string' ? s : (s.cmd || ''),
+      delay: typeof s === 'string' ? 0  : (parseInt(s.delay) || 0),
+    }));
+  }
+  // Retrocompatibilità: singolo comando string
+  return [{ cmd: btn.command || '', delay: 0 }];
+}
+
 
 // Porta il focus al terminale della porta attiva
 function focusActiveTerminal() {
@@ -1639,6 +1669,15 @@ function openEditor(btn=null) {
     colEl.max   = 4;
   }
 
+  // ── Sequenza comandi ──────────────────────────────────────────────────────
+  _ensureSeqCmdUI();
+  const steps = _resolveButtonCommands(btn || {});
+  const hasSeq = Array.isArray(btn?.commands) && btn.commands.length > 0;
+  // Primo campo è sempre f-cmd; popola la lista extra
+  document.getElementById('f-cmd').value = steps[0]?.cmd || '';
+  document.getElementById('f-seq-toggle').checked = hasSeq;
+  _renderSeqRows(hasSeq ? steps : []);
+
   document.getElementById('m-delete').classList.toggle('hidden', !btn);
   document.getElementById('overlay').classList.remove('hidden');
   document.getElementById('f-title').focus();
@@ -1709,10 +1748,210 @@ function closeEditor() {
   editingId = null;
 }
 
+// ─── UI sequenza comandi ──────────────────────────────────────────────────────
+
+/**
+ * Inietta il blocco "Sequenza comandi" nel modal editor, subito sotto il
+ * campo f-cmd esistente. Idempotente: non duplica se già presente.
+ */
+function _ensureSeqCmdUI() {
+  if (document.getElementById('f-seq-block')) return;
+
+  // Trova il .fg che contiene f-cmd
+  const cmdInput = document.getElementById('f-cmd');
+  if (!cmdInput) return;
+  const cmdFg = cmdInput.closest('.fg');
+  if (!cmdFg) return;
+
+  // ── Inietta stile dedicato ───────────────────────────────────────────────
+  if (!document.getElementById('__seq-style')) {
+    const st = document.createElement('style');
+    st.id = '__seq-style';
+    st.textContent = `
+      #f-seq-block {
+        margin-top: 6px;
+      }
+      .f-seq-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--txt2, #8b949e);
+        margin-bottom: 0;
+        cursor: pointer;
+        user-select: none;
+      }
+      .f-seq-toggle-row input[type=checkbox] { cursor: pointer; }
+      #f-seq-list {
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .f-seq-row {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .f-seq-row .seq-num {
+        font-size: 10px;
+        color: var(--txt2, #8b949e);
+        min-width: 16px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+      .f-seq-row input.seq-cmd {
+        flex: 1;
+        min-width: 0;
+        font-size: 12px;
+        padding: 3px 6px;
+        border: 1px solid var(--border, #30363d);
+        border-radius: 4px;
+        background: var(--bg, #0d1117);
+        color: var(--txt, #c9d1d9);
+      }
+      .f-seq-row input.seq-delay {
+        width: 58px;
+        flex-shrink: 0;
+        font-size: 11px;
+        padding: 3px 5px;
+        border: 1px solid var(--border, #30363d);
+        border-radius: 4px;
+        background: var(--bg, #0d1117);
+        color: var(--txt2, #8b949e);
+        text-align: right;
+      }
+      .f-seq-row .seq-delay-lbl {
+        font-size: 10px;
+        color: var(--txt2, #8b949e);
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+      .f-seq-row .seq-del-btn {
+        background: none;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        color: #8b949e;
+        font-size: 11px;
+        cursor: pointer;
+        padding: 1px 5px;
+        flex-shrink: 0;
+        line-height: 1.4;
+      }
+      .f-seq-row .seq-del-btn:hover { color: #f85149; border-color: #f85149; }
+      #f-seq-add-btn {
+        margin-top: 5px;
+        padding: 3px 10px;
+        font-size: 11px;
+        border: 1px dashed #30363d;
+        border-radius: 4px;
+        background: none;
+        color: #58a6ff;
+        cursor: pointer;
+        width: 100%;
+      }
+      #f-seq-add-btn:hover { background: rgba(88,166,255,.08); }
+    `;
+    document.head.appendChild(st);
+  }
+
+  // ── DOM del blocco ───────────────────────────────────────────────────────
+  const block = document.createElement('div');
+  block.id = 'f-seq-block';
+  block.innerHTML = `
+    <label class="f-seq-toggle-row">
+      <input type="checkbox" id="f-seq-toggle">
+      <span>Sequenza comandi — invia più comandi in ordine</span>
+    </label>
+    <div id="f-seq-list" class="hidden"></div>
+    <button id="f-seq-add-btn" class="hidden" type="button">＋ Aggiungi comando</button>
+  `;
+  cmdFg.after(block);
+
+  // Toggle visibilità lista
+  document.getElementById('f-seq-toggle').addEventListener('change', function () {
+    const on = this.checked;
+    document.getElementById('f-seq-list').classList.toggle('hidden', !on);
+    document.getElementById('f-seq-add-btn').classList.toggle('hidden', !on);
+    if (on && document.querySelectorAll('.f-seq-row').length === 0) {
+      // Clona il primo comando da f-cmd
+      const firstCmd = document.getElementById('f-cmd').value;
+      _addSeqRow({ cmd: firstCmd, delay: 0 });
+      _addSeqRow({ cmd: '', delay: 0 });
+    }
+  });
+
+  document.getElementById('f-seq-add-btn').addEventListener('click', () => {
+    _addSeqRow({ cmd: '', delay: 0 });
+  });
+}
+
+/** Aggiunge una riga alla lista sequenza. */
+function _addSeqRow({ cmd = '', delay = 0 } = {}) {
+  const list = document.getElementById('f-seq-list');
+  if (!list) return;
+
+  const idx  = list.children.length + 1;
+  const row  = document.createElement('div');
+  row.className = 'f-seq-row';
+  row.innerHTML = `
+    <span class="seq-num">${idx}.</span>
+    <input class="seq-cmd" type="text" placeholder="Comando" value="${cmd.replace(/"/g,'&quot;')}">
+    <input class="seq-delay" type="number" min="0" max="60000" step="50"
+           value="${delay}" title="Attesa dopo questo comando (ms)">
+    <span class="seq-delay-lbl">ms</span>
+    <button class="seq-del-btn" type="button" title="Rimuovi">×</button>
+  `;
+  row.querySelector('.seq-del-btn').addEventListener('click', () => {
+    row.remove();
+    _renumberSeqRows();
+  });
+  list.appendChild(row);
+}
+
+/** Rinumera le etichette 1. 2. 3. dopo una rimozione. */
+function _renumberSeqRows() {
+  document.querySelectorAll('#f-seq-list .f-seq-row').forEach((r, i) => {
+    const n = r.querySelector('.seq-num');
+    if (n) n.textContent = `${i + 1}.`;
+  });
+}
+
+/** Legge tutte le righe della lista e restituisce [{cmd, delay}]. */
+function _readSeqRows() {
+  const rows = document.querySelectorAll('#f-seq-list .f-seq-row');
+  const result = [];
+  // Primo passo: legge le righe extra; il comando principale viene da f-cmd (step 0)
+  const firstCmd = document.getElementById('f-cmd').value;
+  // Se la lista è aperta, usa le righe; altrimenti usa solo f-cmd
+  if (rows.length === 0) {
+    return [{ cmd: firstCmd, delay: 0 }];
+  }
+  rows.forEach((row, i) => {
+    const cmd   = row.querySelector('.seq-cmd')?.value  || '';
+    const delay = parseInt(row.querySelector('.seq-delay')?.value || '0') || 0;
+    result.push({ cmd, delay });
+  });
+  return result.filter(s => s.cmd.trim() !== '' || result.length === 1);
+}
+
+/** Popola la lista con i passi forniti. */
+function _renderSeqRows(steps) {
+  const list = document.getElementById('f-seq-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const seqEnabled = document.getElementById('f-seq-toggle')?.checked;
+  list.classList.toggle('hidden', !seqEnabled);
+  document.getElementById('f-seq-add-btn')?.classList.toggle('hidden', !seqEnabled);
+  if (!seqEnabled) return;
+  steps.forEach(s => _addSeqRow(s));
+}
+
+
+
 async function saveButton() {
   const tab = activeTab(); if (!tab) return;
   const title      = document.getElementById('f-title').value.trim();
-  const command    = document.getElementById('f-cmd').value;
   const autoSend   = document.getElementById('f-autosend').checked;
   const addSpace   = document.getElementById('f-space').checked;
   const color      = document.getElementById('f-color').value;
@@ -1720,6 +1959,17 @@ async function saveButton() {
   const size       = document.querySelector('input[name="f-size"]:checked')?.value || 'medium';
   const colWidth   = parseInt(document.querySelector('input[name="f-width"]:checked')?.value || '1');
   if (!title) { document.getElementById('f-title').focus(); return; }
+
+  // ── Legge comandi (singolo o sequenza) ────────────────────────────────────
+  const seqEnabled = document.getElementById('f-seq-toggle')?.checked;
+  let command, commands;
+  if (seqEnabled) {
+    commands = _readSeqRows();      // [{cmd, delay}, ...]
+    command  = commands[0]?.cmd || ''; // retrocompat: primo comando come stringa
+  } else {
+    command  = document.getElementById('f-cmd').value;
+    commands = undefined;           // non salva l'array se non usato
+  }
 
   // Legge posizione griglia (f-row oppure f-order per compat HTML vecchio)
   const rowEl  = document.getElementById('f-row') || document.getElementById('f-order');
@@ -1732,18 +1982,17 @@ async function saveButton() {
     if (idx !== -1) {
       tab.buttons[idx] = {
         ...tab.buttons[idx],
-        title, command, autoSend, addSpace, color, portTarget, size, colWidth, gridRow, gridCol
+        title, command, commands, autoSend, addSpace, color, portTarget, size, colWidth, gridRow, gridCol
       };
     }
   } else {
-    // Se non c'è un campo colonna nel form, cerca lo slot libero automaticamente
     if (!colEl) {
       const pos = findNextSlot(colWidth, buildOccupancy(tab.buttons));
       gridRow = pos.row;
       gridCol = pos.col;
     }
     tab.buttons.push({
-      id: uid(), title, command, autoSend, addSpace, color, portTarget,
+      id: uid(), title, command, commands, autoSend, addSpace, color, portTarget,
       size, colWidth, gridRow, gridCol, order: tab.buttons.length
     });
   }
@@ -2676,6 +2925,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.serialAPI.onApplyConfig(data => applyConfigFromFile(data));
   window.serialAPI.onOpenFkeyModal(() => openFkeyModal());
   window.serialAPI.onReopenLastTab(() => reopenLastTab());
+  window.serialAPI.onExportTabRequest?.(() => exportCurrentTab());
+  window.serialAPI.onExportAllTabsRequest?.(() => exportAllTabs());
+  window.serialAPI.onImportTabData?.((data) => importTabData(data));
   window.serialAPI.onToggleFkeyBar(visible => {
     const bar = document.getElementById('fkey-bar');
     if (bar) bar.style.display = visible ? 'flex' : 'none';
@@ -2814,7 +3066,261 @@ async function applyConfigFromFile(data) {
   location.reload();
 }
 
-// ═══════════════════════ MODAL IMPOSTAZIONI PORTA ════════════════════════════
+/**
+ * Esporta la scheda corrente (pulsanti + impostazioni porta + fkeyCfg).
+ * Il file JSON può essere reimportato su un altro PC tramite "Carica configurazione".
+ */
+async function exportCurrentTab() {
+  const tab = cfg.tabs.find(t => t.id === activeTabId);
+  if (!tab) return;
+
+  // Snapshot completo della scheda: struttura identica a una voce di cfg.tabs
+  // più i tasti funzione globali (condivisi da tutte le schede).
+  const exportData = {
+    _type:      'serial-terminal-tab',
+    _version:   1,
+    tabs:       [JSON.parse(JSON.stringify(tab))],
+    fkeyCfg:    JSON.parse(JSON.stringify(fkeyCfg)),
+    infoPanelCfg: JSON.parse(JSON.stringify(infoPanelCfg)),
+    activeTabId: tab.id,
+  };
+
+  const safeName = (tab.title || 'scheda').replace(/[\\/:*?"<>|]/g, '_');
+  const date     = new Date();
+  const stamp    = `${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}`;
+  const res = await window.serialAPI.exportTab({
+    tabData:       exportData,
+    suggestedName: `scheda_${safeName}_${stamp}.json`,
+  });
+  if (res?.success) {
+    _showExportToast(`✅ Scheda "${tab.title}" esportata`);
+  }
+}
+
+/**
+ * Esporta tutte le schede con l'intera configurazione (inclusi tasti F e colori).
+ * Il file è compatibile con "Carica configurazione" e ripristina tutto.
+ */
+async function exportAllTabs() {
+  const exportData = {
+    _type:    'serial-terminal-full',
+    _version: 1,
+    ...cfg,
+    darkMode,
+    counterCfg,
+    counterValue,
+    snGenValue:   document.getElementById('sn-gen')?.value ?? '',
+    phoneCfg,
+    battProgCfg,
+    fkeyCfg:      JSON.parse(JSON.stringify(fkeyCfg)),
+    infoPanelCfg: JSON.parse(JSON.stringify(infoPanelCfg)),
+  };
+
+  const date  = new Date();
+  const stamp = `${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}`;
+  const res = await window.serialAPI.exportAllTabs({
+    exportData,
+    suggestedName: `configurazione_${stamp}.json`,
+  });
+  if (res?.success) {
+    _showExportToast(`✅ Tutte le schede (${cfg.tabs.length}) esportate`);
+  }
+}
+
+/**
+ * Gestisce l'importazione di un file JSON (scheda singola o config completa).
+ * Mostra un modal di scelta prima di applicare qualsiasi modifica.
+ */
+async function importTabData(data) {
+  if (!data || typeof data !== 'object') {
+    alert('File non valido o non riconosciuto.');
+    return;
+  }
+
+  const isSingle = data._type === 'serial-terminal-tab' && Array.isArray(data.tabs) && data.tabs.length === 1;
+  const isFull   = data._type === 'serial-terminal-full' && Array.isArray(data.tabs) && data.tabs.length > 0;
+  const isLegacy = !data._type && Array.isArray(data.tabs) && data.tabs.length > 0; // file salvato prima dell'export
+
+  if (!isSingle && !isFull && !isLegacy) {
+    alert('File non riconosciuto. Assicurati di usare un file esportato da Serial Terminal Pro.');
+    return;
+  }
+
+  _ensureImportModal();
+
+  const modal = document.getElementById('__import-modal-overlay');
+
+  // Popola le info nel modal
+  const tabCount  = data.tabs.length;
+  const tabNames  = data.tabs.map(t => t.title || '(senza nome)').join(', ');
+  const hasFkeys  = Array.isArray(data.fkeyCfg);
+
+  document.getElementById('__im-summary').textContent =
+    isSingle
+      ? `Scheda: "${tabNames}"`
+      : `${tabCount} schede: ${tabNames}`;
+
+  document.getElementById('__im-fkey-row').style.display = hasFkeys ? '' : 'none';
+
+  // Mostra/nascondi opzioni in base al tipo
+  document.getElementById('__im-opt-add').style.display  = '';   // sempre disponibile
+  document.getElementById('__im-opt-replace').style.display = (isFull || isLegacy) ? '' : 'none';
+
+  // Preseleziona l'opzione sensata
+  document.getElementById('__im-radio-add').checked     = true;
+  document.getElementById('__im-fkey-check').checked    = hasFkeys;
+
+  // Handler confirm
+  document.getElementById('__im-confirm').onclick = async () => {
+    const mode       = document.getElementById('__im-radio-replace')?.checked ? 'replace' : 'add';
+    const importFkey = hasFkeys && document.getElementById('__im-fkey-check').checked;
+    modal.classList.add('hidden');
+    await _applyImport(data, mode, importFkey);
+  };
+
+  modal.classList.remove('hidden');
+}
+
+async function _applyImport(data, mode, importFkey) {
+  if (mode === 'replace') {
+    // Sostituisce tutto — uguale a "Carica configurazione"
+    await applyConfigFromFile(data);
+    return;
+  }
+
+  // Modalità "aggiungi": inserisce le schede del file in coda
+  saveTabSettings(activeTabId);
+
+  for (const srcTab of data.tabs) {
+    const newId  = 'tab-' + uid();
+    const newTab = {
+      ...JSON.parse(JSON.stringify(srcTab)),
+      id: newId,
+    };
+    cfg.tabs.push(newTab);
+    tabState[newId] = {
+      terms: {}, fits: {}, connected: { 1: false, 2: false },
+      splitActive: newTab.portSettings?.splitMode  || false,
+      splitRatio:  newTab.portSettings?.splitRatio || 50,
+    };
+    createTabTermGroup(newId);
+    setupTabTerminals(newId);
+  }
+
+  // Importa tasti funzione se richiesto
+  if (importFkey && Array.isArray(data.fkeyCfg)) {
+    data.fkeyCfg.forEach((k, i) => {
+      if (fkeyCfg[i]) fkeyCfg[i] = { ...fkeyCfg[i], ...k };
+    });
+    renderFkeyBar();
+  }
+
+  renderTabBar();
+  // Vai all'ultima scheda importata
+  const lastImported = cfg.tabs[cfg.tabs.length - 1];
+  if (lastImported) await switchTab(lastImported.id);
+  await saveConfig();
+
+  const n = data.tabs.length;
+  _showExportToast(`✅ ${n === 1 ? `Scheda "${data.tabs[0].title}" importata` : `${n} schede importate`}`);
+}
+
+function _ensureImportModal() {
+  if (document.getElementById('__import-modal-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id        = '__import-modal-overlay';
+  overlay.className = 'hidden';
+  overlay.style.cssText = [
+    'position:fixed','inset:0','z-index:99998',
+    'background:rgba(0,0,0,.55)',
+    'display:flex','align-items:center','justify-content:center',
+  ].join(';');
+
+  overlay.innerHTML = `
+    <div style="
+      background:var(--bg2,#161b22);
+      border:1px solid var(--border,#30363d);
+      border-radius:10px;
+      padding:20px 24px;
+      min-width:320px;
+      max-width:460px;
+      color:var(--txt,#c9d1d9);
+      font-family:inherit;
+      font-size:13px;
+    ">
+      <div style="font-weight:700;font-size:15px;margin-bottom:12px">📥 Importa configurazione</div>
+
+      <div style="color:#8b949e;font-size:12px;margin-bottom:14px" id="__im-summary"></div>
+
+      <div id="__im-opt-add" style="margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="radio" name="__im-mode" id="__im-radio-add" value="add">
+          <span><strong>Aggiungi</strong> alle schede esistenti</span>
+        </label>
+      </div>
+      <div id="__im-opt-replace" style="margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="radio" name="__im-mode" id="__im-radio-replace" value="replace">
+          <span><strong>Sostituisci</strong> tutta la configurazione</span>
+        </label>
+      </div>
+
+      <div id="__im-fkey-row" style="
+        background:rgba(88,166,255,.08);
+        border:1px solid #30363d;
+        border-radius:6px;
+        padding:8px 10px;
+        margin-bottom:16px;
+      ">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+          <input type="checkbox" id="__im-fkey-check">
+          <span>Importa anche i <strong>tasti funzione F1–F12</strong></span>
+        </label>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button id="__im-cancel" style="
+          padding:5px 14px;border-radius:6px;border:1px solid #30363d;
+          background:transparent;color:#8b949e;cursor:pointer;font-size:12px
+        ">Annulla</button>
+        <button id="__im-confirm" style="
+          padding:5px 14px;border-radius:6px;border:none;
+          background:#1f6feb;color:#fff;cursor:pointer;font-size:12px;font-weight:600
+        ">Importa</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  document.getElementById('__im-cancel').addEventListener('click', () =>
+    overlay.classList.add('hidden'));
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.add('hidden');
+  });
+}
+
+
+function _showExportToast(msg) {
+  let el = document.getElementById('__export-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '__export-toast';
+    el.style.cssText = [
+      'position:fixed','top:42px','left:50%','transform:translateX(-50%)',
+      'background:#238636','color:#fff','padding:6px 16px',
+      'border-radius:6px','font-size:12px','z-index:99999',
+      'pointer-events:none','transition:opacity .4s',
+    ].join(';');
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 2800);
+}
+
+
 // Sostituisce i campi baud/data/parity/stop/flow/echo nella UI principale.
 // Aperto cliccando il pulsante ⚙ accanto a ogni porta.
 

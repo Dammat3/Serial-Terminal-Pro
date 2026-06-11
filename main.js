@@ -135,6 +135,23 @@ function buildMenu() {
           },
         },
         { type: 'separator' },
+        {
+          label: 'Esporta scheda corrente…',
+          accelerator: 'CmdOrCtrl+E',
+          async click() {
+            if (!win) return;
+            win.webContents.send('export-tab-request');
+          },
+        },
+        {
+          label: 'Esporta tutte le schede…',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          async click() {
+            if (!win) return;
+            win.webContents.send('export-all-tabs-request');
+          },
+        },
+        { type: 'separator' },
         { role: 'quit', label: 'Esci' },
       ],
     },
@@ -489,7 +506,43 @@ ipcMain.handle('load-config-from-file', async () => {
   }
 });
 
-// ── Update IPC ───────────────────────────────────────────────────────────────
+// ── Esporta scheda corrente ───────────────────────────────────────────────────
+ipcMain.handle('export-tab', async (_, { tabData, suggestedName }) => {
+  if (!win) return { success: false };
+  const { filePath, canceled } = await dialog.showSaveDialog(win, {
+    title:       'Esporta scheda',
+    defaultPath: suggestedName || 'scheda.json',
+    filters:     [{ name: 'Configurazione JSON', extensions: ['json'] }],
+  });
+  if (canceled || !filePath) return { success: false, canceled: true };
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(tabData, null, 2), 'utf-8');
+    return { success: true, filePath };
+  } catch (e) {
+    dialog.showErrorBox('Errore esportazione', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+// ── Esporta tutte le schede ───────────────────────────────────────────────────
+ipcMain.handle('export-all-tabs', async (_, { exportData, suggestedName }) => {
+  if (!win) return { success: false };
+  const { filePath, canceled } = await dialog.showSaveDialog(win, {
+    title:       'Esporta tutte le schede',
+    defaultPath: suggestedName || 'configurazione.json',
+    filters:     [{ name: 'Configurazione JSON', extensions: ['json'] }],
+  });
+  if (canceled || !filePath) return { success: false, canceled: true };
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2), 'utf-8');
+    return { success: true, filePath };
+  } catch (e) {
+    dialog.showErrorBox('Errore esportazione', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+
 ipcMain.handle('install-update', () => {
   autoUpdater?.quitAndInstall(false, true);
 });
