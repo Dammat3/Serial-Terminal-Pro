@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('serialAPI', {
   exportAllTabs:      (args) => ipcRenderer.invoke('export-all-tabs', args),
   onExportTabRequest:    (cb) => ipcRenderer.on('export-tab-request',      ()    => cb()),
   onExportAllTabsRequest:(cb) => ipcRenderer.on('export-all-tabs-request', ()    => cb()),
+  onImportTabData:       (cb) => ipcRenderer.on('import-tab-data',         (_, d) => cb(d)),
   // ── Auto-update ──────────────────────────────────────────────────────────
   onUpdateChecking:  (cb) => ipcRenderer.on('update-checking',     ()    => cb()),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available',    (_, v) => cb(v)),
@@ -40,7 +41,7 @@ contextBridge.exposeInMainWorld('serialAPI', {
   removeListeners: () => {
     ['port-data','port-closed','port-error','apply-config','open-fkey-modal',
      'toggle-fkey-bar','reopen-last-tab',
-     'export-tab-request','export-all-tabs-request',
+     'export-tab-request','export-all-tabs-request','import-tab-data',
      'update-checking','update-available','update-not-available','update-progress','update-downloaded',
     ].forEach(ch => ipcRenderer.removeAllListeners(ch));
   },

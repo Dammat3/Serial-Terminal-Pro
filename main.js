@@ -134,6 +134,26 @@ function buildMenu() {
             }
           },
         },
+        {
+          label: 'Importa scheda…',
+          accelerator: 'CmdOrCtrl+I',
+          async click() {
+            if (!win) return;
+            const { filePaths, canceled } = await dialog.showOpenDialog(win, {
+              title:       'Importa scheda',
+              buttonLabel: 'Importa',
+              filters:     [{ name: 'Configurazione JSON', extensions: ['json'] }],
+              properties:  ['openFile'],
+            });
+            if (canceled || !filePaths.length) return;
+            try {
+              const data = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
+              win.webContents.send('import-tab-data', data);
+            } catch (e) {
+              dialog.showErrorBox('Errore importazione', `File non valido:\n${e.message}`);
+            }
+          },
+        },
         { type: 'separator' },
         {
           label: 'Esporta scheda corrente…',
