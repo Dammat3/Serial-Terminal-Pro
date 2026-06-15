@@ -1876,13 +1876,13 @@ function _ensureSeqCmdUI() {
     if (on && document.querySelectorAll('.f-seq-row').length === 0) {
       // Clona il primo comando da f-cmd
       const firstCmd = document.getElementById('f-cmd').value;
-      _addSeqRow({ cmd: firstCmd, delay: 0 });
-      _addSeqRow({ cmd: '', delay: 0 });
+      _addSeqRow({ cmd: firstCmd, delay: 50 });
+      _addSeqRow({ cmd: '', delay: 50 });
     }
   });
 
   document.getElementById('f-seq-add-btn').addEventListener('click', () => {
-    _addSeqRow({ cmd: '', delay: 0 });
+    _addSeqRow({ cmd: '', delay: 50 });
   });
 }
 
@@ -2495,8 +2495,11 @@ function setupListeners() {
   document.getElementById('f-autosend').addEventListener('change', function(){
     document.getElementById('space-opt').classList.toggle('hidden', this.checked);
   });
-  document.getElementById('overlay').addEventListener('click', e => {
-    if (e.target===document.getElementById('overlay')) closeEditor();
+  // Chiude il modal solo se si clicca esattamente sul backdrop (non su selezione testo uscita dal modal)
+  // Usiamo mousedown invece di click: con click, trascinare il mouse fuori dal modal per selezionare
+  // testo causa la chiusura al rilascio. Con mousedown il target è sempre il punto di inizio.
+  document.getElementById('overlay').addEventListener('mousedown', e => {
+    if (e.target === document.getElementById('overlay')) closeEditor();
   });
 
   // Barra inferiore
@@ -2523,7 +2526,23 @@ function setupListeners() {
 
   // Scorciatoie tastiera
   document.addEventListener('keydown', e => {
-    if (e.key==='Escape') { closeEditor(); closeCounterModal(); closePhoneModal(); closeFkeyModal(); }
+    if (e.key === 'Escape') {
+      // Chiude solo se il focus NON è dentro il modal editor (es. stava scrivendo un comando)
+      const overlay = document.getElementById('overlay');
+      const editorOpen = overlay && !overlay.classList.contains('hidden');
+      const focusInsideEditor = editorOpen && overlay.contains(document.activeElement);
+      if (!focusInsideEditor) {
+        closeEditor(); closeCounterModal(); closePhoneModal(); closeFkeyModal();
+      } else {
+        // Se è dentro l'editor, Escape toglie solo il focus dal campo
+        document.activeElement?.blur();
+      }
+    }
+    // Ctrl/Cmd: ignora le scorciatoie globali se il focus è dentro il modal editor
+    const overlay = document.getElementById('overlay');
+    const editorOpen = overlay && !overlay.classList.contains('hidden');
+    const focusInsideEditor = editorOpen && overlay.contains(document.activeElement);
+    if (focusInsideEditor) return; // lascia che il browser gestisca Ctrl+A, Ctrl+C, ecc.
     if ((e.ctrlKey||e.metaKey) && e.key==='t') { e.preventDefault(); document.getElementById('new-tab-btn').click(); }
     if ((e.ctrlKey||e.metaKey) && e.shiftKey && e.key==='T') { e.preventDefault(); reopenLastTab(); }
     if ((e.ctrlKey||e.metaKey) && e.key==='w') {
