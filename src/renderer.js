@@ -2495,12 +2495,8 @@ function setupListeners() {
   document.getElementById('f-autosend').addEventListener('change', function(){
     document.getElementById('space-opt').classList.toggle('hidden', this.checked);
   });
-  // Chiude il modal solo se si clicca esattamente sul backdrop (non su selezione testo uscita dal modal)
-  // Usiamo mousedown invece di click: con click, trascinare il mouse fuori dal modal per selezionare
-  // testo causa la chiusura al rilascio. Con mousedown il target è sempre il punto di inizio.
-  document.getElementById('overlay').addEventListener('mousedown', e => {
-    if (e.target === document.getElementById('overlay')) closeEditor();
-  });
+  // Il modal editor si chiude SOLO tramite i pulsanti X, Annulla e Salva.
+  // Non chiudere cliccando sul backdrop: capita troppo facilmente selezionando testo.
 
   // Barra inferiore
   document.getElementById('send-btn').addEventListener('click', sendUserInput);
@@ -2527,15 +2523,15 @@ function setupListeners() {
   // Scorciatoie tastiera
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      // Chiude solo se il focus NON è dentro il modal editor (es. stava scrivendo un comando)
+      // Il modal editor NON si chiude con Escape: solo X / Annulla / Salva.
+      // Escape chiude gli altri overlay (contatori, telefono, fkey…)
       const overlay = document.getElementById('overlay');
       const editorOpen = overlay && !overlay.classList.contains('hidden');
-      const focusInsideEditor = editorOpen && overlay.contains(document.activeElement);
-      if (!focusInsideEditor) {
-        closeEditor(); closeCounterModal(); closePhoneModal(); closeFkeyModal();
-      } else {
-        // Se è dentro l'editor, Escape toglie solo il focus dal campo
+      if (editorOpen) {
+        // Toglie solo il focus dal campo attivo, non chiude il modal
         document.activeElement?.blur();
+      } else {
+        closeCounterModal(); closePhoneModal(); closeFkeyModal();
       }
     }
     // Ctrl/Cmd: ignora le scorciatoie globali se il focus è dentro il modal editor
